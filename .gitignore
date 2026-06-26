@@ -1,0 +1,25 @@
+# 環境與密鑰
+.env
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# 原始大型文件（不上傳）
+data/raw/
+*.pdf
+*.doc
+*.docx
+
+# 純文字原始檔（靈簽已轉JSON）
+*.txt
+!runtime.txt
+!requirements.txt
+
+# 雜項目錄
+Chat history/
+training/
+scripts/
+
+# macOS
+.DS_Store
