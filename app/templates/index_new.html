@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>李丞責博士 · 2026丙午年運勢</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d0a1a;
+  --card:#1a1535;
+  --card2:#221d40;
+  --gold:#d4af37;
+  --gold2:#f0d060;
+  --gold3:#a88520;
+  --border:rgba(212,175,55,.28);
+  --text:#ffffff;
+  --text2:#b0a0d0;
+  --text3:#7a6a9a;
+  --nav-h:64px;
+  --purple:#6a0dad;
+  --purple2:#9b30ff;
+}
+
+html{scroll-behavior:smooth}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"PingFang TC","Hiragino Sans TC","Microsoft JhengHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+/* ══ 導航欄 ══════════════════════════════════ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  height:var(--nav-h);
+  background:rgba(13,10,26,.85);
+  backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;
+  padding:0 5%;
+  gap:32px;
+}
+.nav-logo{
+  font-size:1.1rem;font-weight:700;letter-spacing:1px;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  white-space:nowrap;margin-right:auto;
+}
+.nav-links{display:flex;gap:24px;list-style:none}
+.nav-links a{
+  color:var(--text2);font-size:.875rem;text-decoration:none;
+  transition:color .2s;white-space:nowrap;
+}
+.nav-links a:hover{color:var(--gold)}
+.nav-links .cta{
+  color:var(--gold);border:1px solid var(--border);
+  padding:6px 16px;border-radius:20px;
+  transition:background .2s,color .2s;
+}
+.nav-links .cta:hover{background:rgba(212,175,55,.12)}
+
+/* ══ Hero 區域 ══════════════════════════════ */
+#hero{
+  min-height:100vh;
+  padding-top:var(--nav-h);
+  display:flex;align-items:center;
+  position:relative;
+  overflow:hidden;
+}
+
+/* 祥雲背景（純CSS）*/
+#hero::before{
+  content:"";
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 60%, rgba(106,13,173,.15) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 60% at 80% 30%, rgba(212,175,55,.06) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 40% at 50% 80%, rgba(155,48,255,.08) 0%, transparent 60%);
+  pointer-events:none;
+}
+.cloud{
+  position:absolute;opacity:.04;font-size:220px;
+  color:var(--gold);pointer-events:none;user-select:none;line-height:1;
+}
+.cloud.c1{right:-40px;top:10%;transform:rotate(-10deg)}
+.cloud.c2{right:15%;bottom:15%;font-size:140px;opacity:.03;transform:rotate(15deg)}
+
+.hero-inner{
+  max-width:1140px;margin:0 auto;padding:60px 5%;
+  display:grid;grid-template-columns:1fr 1fr;gap:60px;
+  align-items:center;width:100%;position:relative;z-index:1;
+}
+
+/* 左側文案 */
+.hero-copy{display:flex;flex-direction:column;gap:20px}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:.78rem;color:var(--gold);letter-spacing:2px;
+  border:1px solid var(--border);border-radius:20px;
+  padding:5px 16px;width:fit-content;
+}
+.hero-badge::before{content:"✦";font-size:.7rem}
+.hero-title{
+  font-size:clamp(1.9rem,3.5vw,2.8rem);
+  font-weight:700;line-height:1.25;letter-spacing:.5px;
+}
+.hero-title span{
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero-sub{font-size:.95rem;color:var(--text2);line-height:1.7;max-width:400px}
+.hero-cta{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:14px 32px;border-radius:28px;font-size:.95rem;font-weight:600;
+  background:linear-gradient(135deg,var(--gold3),var(--gold));
+  color:#0d0a1a;text-decoration:none;cursor:pointer;border:none;
+  transition:opacity .2s,transform .1s;width:fit-content;
+  letter-spacing:.5px;
+}
+.hero-cta:hover{opacity:.88;transform:translateY(-1px)}
+.hero-scroll-hint{
+  font-size:.75rem;color:var(--text3);
+  display:flex;align-items:center;gap:6px;
+}
+
+/* ══ 表單卡片 ══════════════════════════════ */
+.form-card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:28px 24px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+}
+.form-card-top{
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:20px;padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+}
+.form-star{font-size:1.4rem;color:var(--gold)}
+.form-card-top h3{
+  font-size:1rem;font-weight:700;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.form-card-top p{font-size:.75rem;color:var(--text2);margin-top:2px}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+label{font-size:.78rem;color:var(--text2);letter-spacing:.3px}
+label .opt{color:var(--text3);font-size:.72rem;margin-left:4px}
+
+input,select,textarea{
+  width:100%;padding:10px 14px;
+  background:#12102a;border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-size:.875rem;
+  font-family:inherit;outline:none;
+  transition:border-color .2s,background .2s;
+  -webkit-appearance:none;
+}
+input::placeholder,textarea::placeholder{color:var(--text3)}
+input:focus,select:focus,textarea:focus{
+  border-color:rgba(212,175,55,.6);
+  background:#1a1535;
+}
+select option{background:#1a1535;color:var(--text)}
+textarea{resize:vertical;min-height:70px;max-height:140px;line-height:1.5}
+
+.form-note{
+  font-size:.72rem;color:var(--text3);margin-top:4px;
+}
+
+.submit-btn{
+  width:100%;padding:13px;margin-top:8px;
+  border-radius:10px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--gold3),var(--gold));
+  color:#0d0a1a;font-size:.95rem;font-weight:700;
+  letter-spacing:1px;font-family:inherit;
+  transition:opacity .2s,transform .1s;
+}
+.submit-btn:hover{opacity:.88;transform:translateY(-1px)}
+.submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* ══ 結果區域 ══════════════════════════════ */
+#result-section{
+  display:none;
+  max-width:860px;margin:0 auto;padding:0 5% 80px;
+}
+#result-section.visible{display:block}
+
+.result-header{
+  text-align:center;padding:40px 0 32px;
+}
+.result-header h2{
+  font-size:1.5rem;font-weight:700;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:8px;
+}
+.result-header p{font-size:.875rem;color:var(--text2)}
+
+.bazi-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:20px 24px;margin-bottom:20px;
+}
+.bazi-card h3{
+  font-size:.82rem;color:var(--gold);letter-spacing:1px;
+  margin-bottom:14px;text-transform:uppercase;
+}
+.bazi-pillars{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+  margin-bottom:16px;
+}
+.pillar{
+  background:#12102a;border:1px solid var(--border);
+  border-radius:8px;padding:10px;text-align:center;
+}
+.pillar .pillar-label{font-size:.68rem;color:var(--text3);margin-bottom:4px}
+.pillar .pillar-gz{font-size:1.2rem;color:var(--gold);font-weight:700}
+.pillar .pillar-elem{font-size:.72rem;color:var(--text2);margin-top:2px}
+
+.wuxing-row{
+  display:flex;gap:8px;flex-wrap:wrap;
+}
+.wx-tag{
+  padding:4px 12px;border-radius:20px;
+  font-size:.78rem;font-weight:600;
+}
+.wx-金{background:rgba(255,215,0,.12);color:#ffd700;border:1px solid rgba(255,215,0,.25)}
+.wx-木{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.wx-水{background:rgba(59,130,246,.12);color:#60a5fa;border:1px solid rgba(59,130,246,.25)}
+.wx-火{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.25)}
+.wx-土{background:rgba(217,119,6,.12);color:#fbbf24;border:1px solid rgba(217,119,6,.25)}
+
+.fortune-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;
+}
+.fortune-item{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:16px 18px;
+}
+.fortune-item h4{
+  font-size:.78rem;color:var(--gold);letter-spacing:1px;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px;
+}
+.fortune-item p{font-size:.85rem;color:var(--text2);line-height:1.7}
+
+.overall-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:20px 24px;margin-bottom:14px;
+}
+.overall-card h3{
+  font-size:.82rem;color:var(--gold);letter-spacing:1px;margin-bottom:12px;
+}
+.overall-card p{font-size:.875rem;color:var(--text2);line-height:1.8}
+
+.advice-card{
+  background:linear-gradient(135deg,rgba(26,21,53,.8),rgba(34,29,64,.8));
+  border:1px solid rgba(212,175,55,.4);
+  border-radius:12px;padding:20px 24px;margin-bottom:20px;
+}
+.advice-card h3{
+  font-size:.82rem;color:var(--gold);letter-spacing:1px;margin-bottom:12px;
+}
+.advice-card p{font-size:.875rem;color:var(--text2);line-height:1.8}
+
+.result-cta-row{
+  display:flex;gap:12px;justify-content:center;flex-wrap:wrap;
+  padding-top:8px;
+}
+.result-cta{
+  padding:12px 28px;border-radius:24px;font-size:.875rem;font-weight:600;
+  text-decoration:none;cursor:pointer;font-family:inherit;
+  transition:opacity .2s;
+}
+.result-cta.primary{
+  background:linear-gradient(135deg,var(--gold3),var(--gold));
+  color:#0d0a1a;border:none;
+}
+.result-cta.secondary{
+  background:transparent;color:var(--gold);
+  border:1px solid var(--border);
+}
+.result-cta:hover{opacity:.82}
+
+.email-note{
+  text-align:center;font-size:.78rem;color:var(--text3);
+  margin-top:12px;
+}
+
+/* 載入動畫 */
+#loading-overlay{
+  display:none;
+  position:fixed;inset:0;z-index:200;
+  background:rgba(13,10,26,.85);backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;flex-direction:column;gap:16px;
+}
+#loading-overlay.show{display:flex}
+.spin-star{
+  font-size:3rem;color:var(--gold);
+  animation:spin 1.5s linear infinite;
+}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.loading-text{color:var(--text2);font-size:.9rem;letter-spacing:1px}
+
+/* ══ 關於師傅 ════════════════════════════════ */
+#about{
+  padding:90px 5%;
+  border-top:1px solid var(--border);
+}
+.section-label{
+  text-align:center;font-size:.78rem;color:var(--gold);
+  letter-spacing:3px;margin-bottom:12px;
+}
+.section-title{
+  text-align:center;font-size:clamp(1.5rem,3vw,2.2rem);
+  font-weight:700;margin-bottom:40px;
+}
+
+.stats-row{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:20px;max-width:760px;margin:0 auto 50px;
+}
+.stat-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:12px;padding:28px 20px;text-align:center;
+}
+.stat-num{
+  font-size:2.2rem;font-weight:700;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  line-height:1;margin-bottom:8px;
+}
+.stat-label{font-size:.82rem;color:var(--text2)}
+
+.about-bio{
+  max-width:680px;margin:0 auto 32px;
+  font-size:.9rem;color:var(--text2);line-height:1.85;text-align:center;
+}
+
+/* ══ 媒體報導 ════════════════════════════════ */
+#media{
+  padding:80px 5%;
+  background:rgba(26,21,53,.3);
+  border-top:1px solid var(--border);
+}
+.media-sub{
+  text-align:center;font-size:.82rem;color:var(--text2);margin-bottom:28px;
+}
+.media-grid{
+  display:flex;gap:12px;flex-wrap:wrap;
+  justify-content:center;max-width:700px;margin:0 auto;
+}
+.media-tag{
+  padding:10px 22px;border-radius:8px;
+  background:var(--card);border:1px solid var(--border);
+  font-size:.875rem;color:var(--text2);
+  transition:border-color .2s,color .2s;
+}
+.media-tag:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ══ Footer ══════════════════════════════════ */
+footer{
+  padding:48px 5% 32px;
+  border-top:1px solid var(--border);
+}
+.footer-inner{
+  max-width:1000px;margin:0 auto;
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  gap:32px;margin-bottom:32px;
+}
+.footer-col h4{
+  font-size:.82rem;color:var(--gold);
+  letter-spacing:1px;margin-bottom:14px;
+}
+.footer-col p,.footer-col a{
+  font-size:.82rem;color:var(--text2);
+  line-height:2;text-decoration:none;display:block;
+}
+.footer-col a:hover{color:var(--gold)}
+.footer-bottom{
+  text-align:center;padding-top:24px;
+  border-top:1px solid var(--border);
+  font-size:.75rem;color:var(--text3);line-height:1.8;
+}
+
+/* ══ 通用工具 ════════════════════════════════ */
+.gold{color:var(--gold)}
+.center{text-align:center}
+.mt-16{margin-top:16px}
+
+/* ══ 響應式 ══════════════════════════════════ */
+@media(max-width:768px){
+  .hero-inner{grid-template-columns:1fr;gap:32px}
+  .hero-copy{order:2}
+  .form-card{order:1}
+  .form-row{grid-template-columns:1fr}
+  .fortune-grid{grid-template-columns:1fr}
+  .bazi-pillars{grid-template-columns:repeat(2,1fr)}
+  .stats-row{grid-template-columns:1fr}
+  .footer-inner{grid-template-columns:1fr}
+  nav{gap:16px}
+  .nav-links{gap:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ 導航欄 ══ -->
+<nav>
+  <div class="nav-logo">李丞責博士</div>
+  <ul class="nav-links">
+    <li><a href="#about">關於師傅</a></li>
+    <li><a href="#media">媒體報導</a></li>
+    <li><a href="mailto:booking@leeshingchak.com">預約諮詢</a></li>
+    <li><a href="/chat" class="cta">AI問事</a></li>
+  </ul>
+</nav>
+
+<!-- ══ Hero ══ -->
+<section id="hero">
+  <div class="cloud c1">雲</div>
+  <div class="cloud c2">☁</div>
+
+  <div class="hero-inner">
+    <!-- 左側文案 -->
+    <div class="hero-copy">
+      <div class="hero-badge">2026 丙午年運勢</div>
+      <h1 class="hero-title">
+        探索您的<br><span>命運之光</span>
+      </h1>
+      <p class="hero-sub">
+        結合紫微斗數・奇門遁甲・玄學智慧<br>
+        李丞責博士三十五年深厚積澱<br>
+        為您解讀2026丙午年個人運程
+      </p>
+      <button class="hero-cta" onclick="document.getElementById('surname').focus();document.getElementById('form-card').scrollIntoView({behavior:'smooth'})">
+        ✦ 立即查看運勢
+      </button>
+      <div class="hero-scroll-hint">↓ 輸入資料，即時獲得您的運勢分析</div>
+    </div>
+
+    <!-- 右側表單卡片 -->
+    <div class="form-card" id="form-card">
+      <div class="form-card-top">
+        <div class="form-star">✦</div>
+        <div>
+          <h3>2026年命盤運勢分析</h3>
+          <p>由李丞責博士AI深度解讀您的流年運程</p>
+        </div>
+      </div>
+
+      <form id="fortune-form" onsubmit="submitForm(event)">
+        <!-- 姓名 -->
+        <div class="form-row">
+          <div class="form-group" style="margin-bottom:0">
+            <label for="surname">姓氏</label>
+            <input type="text" id="surname" placeholder="例：陳" required maxlength="4"/>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="givenname">名字</label>
+            <input type="text" id="givenname" placeholder="例：大文" required maxlength="8"/>
+          </div>
+        </div>
+
+        <!-- 生日+時間 -->
+        <div class="form-row" style="margin-top:12px">
+          <div class="form-group" style="margin-bottom:0">
+            <label for="birthdate">出生日期</label>
+            <input type="date" id="birthdate" required/>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label for="birthtime">出生時間 <span class="opt">（選填）</span></label>
+            <input type="time" id="birthtime" placeholder="--:--"/>
+          </div>
+        </div>
+
+        <!-- 性別 -->
+        <div class="form-group" style="margin-top:12px">
+          <label for="gender">性別</label>
+          <select id="gender" required>
+            <option value="">請選擇</option>
+            <option value="男">男</option>
+            <option value="女">女</option>
+            <option value="不透露">不透露</option>
+          </select>
+        </div>
+
+        <!-- 問題 -->
+        <div class="form-group">
+          <label for="question">想解答的問題</label>
+          <textarea id="question" placeholder="例：我的事業發展前景如何？今年財運點？" required></textarea>
+        </div>
+
+        <!-- 郵箱 -->
+        <div class="form-group">
+          <label for="email">電子郵件地址 <span class="opt">（選填）</span></label>
+          <input type="email" id="email" placeholder="用於接收您的玄學結果"/>
+          <div class="form-note">✉ 選填，填寫後報告將同時發送至您的郵箱</div>
+        </div>
+
+        <button type="submit" class="submit-btn" id="submit-btn">✦ 探尋運勢</button>
+      </form>
+    </div><!-- /form-card -->
+  </div><!-- /hero-inner -->
+</section>
+
+<!-- ══ 結果區域 ══ -->
+<div id="result-section">
+  <div class="result-header">
+    <h2 id="result-title">運勢分析報告</h2>
+    <p id="result-subtitle"></p>
+  </div>
+
+  <!-- 命盤基本資料 -->
+  <div class="bazi-card" id="bazi-card">
+    <h3>▸ 命盤基本資料</h3>
+    <div class="bazi-pillars" id="bazi-pillars"></div>
+    <div class="wuxing-row" id="wuxing-row"></div>
+  </div>
+
+  <!-- 整體運勢 -->
+  <div class="overall-card">
+    <h3>▸ 整體運勢</h3>
+    <p id="overall-text"></p>
+  </div>
+
+  <!-- 四項運勢 -->
+  <div class="fortune-grid" id="fortune-grid">
+    <div class="fortune-item">
+      <h4>💰 財運</h4>
+      <p id="wealth-text"></p>
+    </div>
+    <div class="fortune-item">
+      <h4>💼 事業</h4>
+      <p id="career-text"></p>
+    </div>
+    <div class="fortune-item">
+      <h4>❤️ 感情</h4>
+      <p id="love-text"></p>
+    </div>
+    <div class="fortune-item">
+      <h4>🌿 健康</h4>
+      <p id="health-text"></p>
+    </div>
+  </div>
+
+  <!-- 化解建議 -->
+  <div class="advice-card">
+    <h3>✦ 化解建議</h3>
+    <p id="advice-text"></p>
+  </div>
+
+  <!-- 底部CTA -->
+  <div class="result-cta-row">
+    <a href="/chat" class="result-cta primary">與李丞責AI深入對話 →</a>
+    <button class="result-cta secondary" onclick="resetForm()">重新查詢</button>
+  </div>
+  <div class="email-note" id="email-note" style="display:none">
+    ✉ 報告將發送至您的郵箱
+  </div>
+</div>
+
+<!-- 載入動畫 -->
+<div id="loading-overlay">
+  <div class="spin-star">✦</div>
+  <div class="loading-text">正在推算您的命盤運勢…</div>
+</div>
+
+<!-- ══ 關於師傅 ══ -->
+<section id="about">
+  <div class="section-label">ABOUT</div>
+  <h2 class="section-title">關於李丞責博士</h2>
+
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-num">35+</div>
+      <div class="stat-label">年玄學資歷</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">500+</div>
+      <div class="stat-label">服務企業客戶</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">第十五屆</div>
+      <div class="stat-label">世界傑出華人獎</div>
+    </div>
+  </div>
+
+  <p class="about-bio">
+    李丞責博士出身命相世家，祖孫三代真傳，精通紫微斗數、奇門遁甲、九宮飛星風水、塔羅牌及卜卦等多門術數。
+    三十五年來，曾為滙豐銀行、恒生銀行、中國平安、萬達地產等逾五百家知名企業提供玄學顧問服務，
+    並接受各大媒體訪問逾千次。現設辦公室於香港銅鑼灣，提供個人及企業玄學諮詢。
+  </p>
+
+  <div class="center">
+    <a href="mailto:booking@leeshingchak.com" class="hero-cta" style="display:inline-flex">
+      預約諮詢
+    </a>
+  </div>
+</section>
+
+<!-- ══ 媒體報導 ══ -->
+<section id="media">
+  <div class="section-label">MEDIA</div>
+  <h2 class="section-title">各大媒體報導</h2>
+  <p class="media-sub">李丞責博士接受各大媒體訪問逾千次，玄學分析屢獲準確印證</p>
+  <div class="media-grid">
+    <div class="media-tag">南華早報</div>
+    <div class="media-tag">頭條日報</div>
+    <div class="media-tag">星島日報</div>
+    <div class="media-tag">東方日報</div>
+    <div class="media-tag">am730</div>
+    <div class="media-tag">香港電台</div>
+    <div class="media-tag">無線電視</div>
+    <div class="media-tag">有線電視</div>
+  </div>
+</section>
+
+<!-- ══ Footer ══ -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-col">
+      <h4>聯絡資料</h4>
+      <p>📍 香港銅鑼灣辦公室</p>
+      <a href="mailto:booking@leeshingchak.com">booking@leeshingchak.com</a>
+      <a href="https://www.leeshingchak.com" target="_blank">www.leeshingchak.com</a>
+    </div>
+    <div class="footer-col">
+      <h4>服務項目</h4>
+      <p>紫微斗數流年分析</p>
+      <p>奇門遁甲問事</p>
+      <p>九宮飛星風水佈局</p>
+      <p>企業開市擇日</p>
+    </div>
+    <div class="footer-col">
+      <h4>AI服務</h4>
+      <a href="/chat">李丞責AI問事</a>
+      <p style="margin-top:8px;font-size:.75rem;color:var(--text3)">
+        由人工智能輔助，<br>以李丞責著作為知識庫
+      </p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>玄學內容僅供參考，一切以個人判斷為準。</p>
+    <p style="margin-top:4px">© 2026 李丞責中華風水文化基金會 · All Rights Reserved</p>
+  </div>
+</footer>
+
+<script>
+// ── 表單提交 ─────────────────────────────────────────
+
+async function submitForm(e) {
+  e.preventDefault();
+
+  const surname   = document.getElementById("surname").value.trim();
+  const givenname = document.getElementById("givenname").value.trim();
+  const birthdate = document.getElementById("birthdate").value;
+  const birthtime = document.getElementById("birthtime").value;
+  const gender    = document.getElementById("gender").value;
+  const question  = document.getElementById("question").value.trim();
+  const email     = document.getElementById("email").value.trim();
+
+  if (!surname || !givenname || !birthdate || !gender || !question) {
+    alert("請填寫姓名、出生日期、性別及問題");
+    return;
+  }
+
+  // 顯示載入
+  document.getElementById("loading-overlay").classList.add("show");
+  document.getElementById("submit-btn").disabled = true;
+
+  // 隱藏舊結果
+  document.getElementById("result-section").classList.remove("visible");
+
+  try {
+    const res = await fetch("/analyze", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        surname,
+        name: givenname,
+        birth_date: birthdate,
+        birth_time: birthtime || null,
+        gender,
+        question,
+        email: email || null,
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error || "分析失敗，請稍後再試");
+    }
+
+    renderResult(data, surname + givenname, email);
+
+  } catch(err) {
+    alert("⚠️ " + err.message);
+  } finally {
+    document.getElementById("loading-overlay").classList.remove("show");
+    document.getElementById("submit-btn").disabled = false;
+  }
+}
+
+// ── 渲染結果 ─────────────────────────────────────────
+
+function renderResult(data, fullName, email) {
+  // 標題
+  document.getElementById("result-title").textContent =
+    fullName + " 的2026年運勢報告";
+  document.getElementById("result-subtitle").textContent =
+    "生肖屬" + data.shengxiao + " · 八字 " + data.bazi + " · " + data.lunar;
+
+  // 命盤四柱
+  const pillarsEl = document.getElementById("bazi-pillars");
+  pillarsEl.innerHTML = "";
+  const pillarDefs = [
+    {label:"年柱", gz: data.year_pillar},
+    {label:"月柱", gz: data.month_pillar},
+    {label:"日柱", gz: data.day_pillar},
+    {label:"時柱", gz: data.hour_pillar || "—"},
+  ];
+  const ELEM = {"甲":"木","乙":"木","丙":"火","丁":"火","戊":"土","己":"土","庚":"金","辛":"金","壬":"水","癸":"水"};
+  pillarDefs.forEach(p => {
+    const stem = p.gz && p.gz.length > 0 ? p.gz[0] : "";
+    const elem = ELEM[stem] || "";
+    pillarsEl.innerHTML += `
+      <div class="pillar">
+        <div class="pillar-label">${p.label}</div>
+        <div class="pillar-gz">${p.gz}</div>
+        <div class="pillar-elem">${elem ? elem+"行" : ""}</div>
+      </div>`;
+  });
+
+  // 五行標籤
+  const wxEl = document.getElementById("wuxing-row");
+  wxEl.innerHTML = "";
+  if (data.wuxing) {
+    Object.entries(data.wuxing).forEach(([k,v]) => {
+      if (v > 0) wxEl.innerHTML += `<span class="wx-tag wx-${k}">${k} ×${v}</span>`;
+    });
+  }
+
+  // 各項運勢
+  document.getElementById("overall-text").textContent  = data.fortune?.overall  || "";
+  document.getElementById("wealth-text").textContent   = data.fortune?.wealth   || "";
+  document.getElementById("career-text").textContent   = data.fortune?.career   || "";
+  document.getElementById("love-text").textContent     = data.fortune?.love     || "";
+  document.getElementById("health-text").textContent   = data.fortune?.health   || "";
+  document.getElementById("advice-text").textContent   = data.advice || "";
+
+  // 郵箱提示
+  const emailNote = document.getElementById("email-note");
+  if (email) {
+    emailNote.textContent = "✉ 報告將發送至：" + email;
+    emailNote.style.display = "block";
+  } else {
+    emailNote.style.display = "none";
+  }
+
+  // 顯示並滾動
+  const sec = document.getElementById("result-section");
+  sec.classList.add("visible");
+  sec.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+// ── 重置表單 ─────────────────────────────────────────
+
+function resetForm() {
+  document.getElementById("fortune-form").reset();
+  document.getElementById("result-section").classList.remove("visible");
+  document.getElementById("form-card").scrollIntoView({behavior:"smooth"});
+}
+</script>
+</body>
+</html>

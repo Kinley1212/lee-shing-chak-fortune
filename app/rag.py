@@ -11,9 +11,10 @@ import re
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-CHUNKS_PATH   = os.path.join(BASE, "data", "knowledge", "book_2026_chunks.json")
-LINGQIAN_PATH = os.path.join(BASE, "data", "knowledge", "bei_di_ling_qian.json")
-PROFILE_PATH  = os.path.join(BASE, "data", "knowledge", "dr_lee_profile.md")
+CHUNKS_PATH        = os.path.join(BASE, "data", "knowledge", "book_2026_chunks.json")
+LINGQIAN_PATH      = os.path.join(BASE, "data", "knowledge", "bei_di_ling_qian_chunks.json")
+LINGQIAN_OLD_PATH  = os.path.join(BASE, "data", "knowledge", "bei_di_ling_qian.json")
+PROFILE_PATH       = os.path.join(BASE, "data", "knowledge", "dr_lee_profile.md")
 
 ZODIACS = ["鼠", "牛", "虎", "兔", "龍", "蛇", "馬", "羊", "猴", "雞", "狗", "豬"]
 TOPICS  = ["財運", "感情", "事業", "健康", "風水", "預言", "佈局"]
@@ -33,14 +34,34 @@ ZODIAC_ALIASES: dict[str, list[str]] = {
     "豬": ["豬", "亥豬", "屬豬"],
 }
 
-IDENTITY_KEYWORDS = ["李丞責", "師傅", "博士", "你是誰", "你係", "介紹自己", "你嘅資料"]
+IDENTITY_KEYWORDS  = ["李丞責", "師傅", "博士", "你是誰", "你係", "介紹自己", "你嘅資料"]
+LINGQIAN_KEYWORDS  = ["靈簽", "卜籤", "求籤", "北帝", "上籤", "中籤", "下籤", "占卜"]
+
+HEXAGRAM_ALIASES: dict[str, list[str]] = {
+    "乾": ["乾卦", "乾"],   "坤": ["坤卦", "坤"],   "屯": ["屯卦"],    "蒙": ["蒙卦"],
+    "需": ["需卦"],          "訟": ["訟卦"],          "師": ["師卦"],    "比": ["比卦"],
+    "小畜": ["小畜卦"],      "履": ["履卦"],          "泰": ["泰卦"],    "否": ["否卦"],
+    "同人": ["同人卦"],       "大有": ["大有卦"],       "謙": ["謙卦"],    "豫": ["豫卦"],
+    "隨": ["隨卦"],          "蠱": ["蠱卦"],          "臨": ["臨卦"],    "觀": ["觀卦"],
+    "噬嗑": ["噬嗑卦"],      "賁": ["賁卦"],          "剝": ["剝卦"],    "復": ["復卦"],
+    "無妄": ["無妄卦"],       "大畜": ["大畜卦"],       "頤": ["頤卦"],    "大過": ["大過卦"],
+    "坎": ["坎卦"],          "離": ["離卦"],          "咸": ["咸卦"],    "恒": ["恒卦"],
+    "遯": ["遯卦"],          "大壯": ["大壯卦"],       "晉": ["晉卦"],    "明夷": ["明夷卦"],
+    "家人": ["家人卦"],       "睽": ["睽卦"],          "蹇": ["蹇卦"],    "解": ["解卦"],
+    "損": ["損卦"],          "益": ["益卦"],          "夬": ["夬卦"],    "姤": ["姤卦"],
+    "萃": ["萃卦"],          "升": ["升卦"],          "困": ["困卦"],    "井": ["井卦"],
+    "革": ["革卦"],          "鼎": ["鼎卦"],          "震": ["震卦"],    "艮": ["艮卦"],
+    "漸": ["漸卦"],          "豐": ["豐卦"],          "旅": ["旅卦"],
+    "巽": ["巽卦"],          "兌": ["兌卦"],          "渙": ["渙卦"],    "節": ["節卦"],
+    "中孚": ["中孚卦"],       "小過": ["小過卦"],       "既濟": ["既濟卦"], "未濟": ["未濟卦"],
+}
 
 
 class RAGEngine:
     def __init__(self):
         self.chunks: list[dict] = []
+        self.lingqian_chunks: list[dict] = []
         self.profile_text: str = ""
-        self.lingqian_text: str = ""
         self._load_all()
 
     def _load_all(self):
@@ -58,8 +79,15 @@ class RAGEngine:
 
         if os.path.exists(LINGQIAN_PATH):
             with open(LINGQIAN_PATH, encoding="utf-8") as f:
-                self.lingqian_text = json.load(f)["text"]
-            print("[RAG] 北帝靈簽載入完成")
+                self.lingqian_chunks = json.load(f)
+            print(f"[RAG] 北帝靈簽載入完成（{len(self.lingqian_chunks)} 卦）")
+        elif os.path.exists(LINGQIAN_OLD_PATH):
+            # 向後兼容：舊版全文格式
+            with open(LINGQIAN_OLD_PATH, encoding="utf-8") as f:
+                old = json.load(f)
+            self.lingqian_chunks = [{"hexagram": "全文", "text": old.get("text", "")[:2000],
+                                     "source": "北帝靈簽詳解"}]
+            print("[RAG] 北帝靈簽（舊版全文）載入完成")
 
     # ── 解析查詢 ─────────────────────────────────────
 
@@ -73,13 +101,34 @@ class RAGEngine:
     def _extract_topics(self, query: str) -> list[str]:
         return [t for t in TOPICS if t in query]
 
-    def _keyword_score(self, chunk: dict, query: str) -> int:
-        """全文關鍵字得分：2字以上詞組在文本中出現次數"""
+    def _keyword_score(self, chunk: dict, query: str) -> float:
+        """關鍵字得分 × 塊權重（第六章週運塊 weight=0.5，其餘 weight=1.0）"""
         text = chunk.get("text", "")
         score = 0
         for word in re.findall(r"[一-鿿]{2,}", query):
             score += text.count(word)
-        return score
+        weight = chunk.get("weight", 1.0)
+        return score * weight
+
+    def _search_lingqian(self, query: str) -> list[dict]:
+        """搜尋靈簽：優先匹配具名卦，否則按關鍵字評分"""
+        # 直接指定卦名
+        for hexagram, aliases in HEXAGRAM_ALIASES.items():
+            if any(a in query for a in aliases):
+                for c in self.lingqian_chunks:
+                    if c.get("hexagram") == hexagram:
+                        return [c]
+
+        # 關鍵字評分
+        scored = []
+        for c in self.lingqian_chunks:
+            text = c.get("text", "")
+            score = sum(text.count(w) for w in re.findall(r"[一-鿿]{2,}", query))
+            scored.append((score, c))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        # 有得分才返回，否則返回首卦作示例
+        best = scored[0][1] if scored and scored[0][0] > 0 else (self.lingqian_chunks[0] if self.lingqian_chunks else None)
+        return [best] if best else []
 
     # ── 四優先級搜尋 ──────────────────────────────────
 
@@ -87,9 +136,15 @@ class RAGEngine:
         if not self.chunks:
             return []
 
-        # 特殊路由：靈簽
-        if "靈簽" in query or "北帝" in query:
-            return [{"text": self.lingqian_text[:1500], "source": "北帝靈簽", "zodiac": None}]
+        # 特殊路由：靈簽（含靈簽關鍵字 或 直接提及卦名）
+        is_lingqian = any(kw in query for kw in LINGQIAN_KEYWORDS)
+        if not is_lingqian:
+            is_lingqian = any(
+                any(a in query for a in aliases)
+                for aliases in HEXAGRAM_ALIASES.values()
+            )
+        if is_lingqian:
+            return self._search_lingqian(query)
 
         # 特殊路由：身份查詢
         if any(kw in query for kw in IDENTITY_KEYWORDS):
@@ -159,3 +214,7 @@ class RAGEngine:
     @property
     def chunk_count(self) -> int:
         return len(self.chunks)
+
+    @property
+    def lingqian_count(self) -> int:
+        return len(self.lingqian_chunks)
