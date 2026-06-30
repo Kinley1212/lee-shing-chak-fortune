@@ -295,13 +295,40 @@ def send_report_email(to_addr: str, full_name: str, shengxiao: str,
 
     try:
         ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=15) as server:
+            server.ehlo()
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, to_addr, msg.as_string())
+        print(f"[EMAIL OK] 已發送至 {to_addr}", flush=True)
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] {e}", flush=True)
+        print(f"[EMAIL ERROR] {type(e).__name__}: {e}", flush=True)
         return False
+
+
+@app.route("/test-email")
+def test_email():
+    """SMTP 連線測試（僅限調試用）"""
+    to = request.args.get("to", SMTP_USER)
+    import traceback
+    result = {"host": SMTP_HOST, "port": SMTP_PORT, "user": SMTP_USER, "to": to}
+    try:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=15) as server:
+            server.ehlo()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.sendmail(SMTP_USER, to,
+                f"Subject: SMTP Test\r\nFrom: {SMTP_USER}\r\nTo: {to}\r\n\r\nSMTP test OK")
+        result["status"] = "success"
+    except Exception as e:
+        result["status"] = "error"
+        result["error"]  = f"{type(e).__name__}: {e}"
+        result["trace"]  = traceback.format_exc()
+    return jsonify(result)
 
 
 @app.route("/analyze", methods=["POST"])
