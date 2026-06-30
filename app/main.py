@@ -500,19 +500,7 @@ def analyze():
     }
     question_answer = _extract(raw_reply, "問題解答")
 
-    email_sent = False
-    if email:
-        email_sent = send_report_email(
-            to_addr        = email,
-            full_name      = full_name,
-            shengxiao      = bazi["shengxiao"],
-            bazi_str       = bazi["bazi_string"],
-            lunar          = bazi["lunar_date"],
-            wuxing_summary = wuxing_summary,
-            sections       = gemini_sections,
-            question       = question,
-            question_answer= question_answer,
-        )
+    # 郵件由前端 EmailJS 發送，後端不處理
 
     return jsonify({
         "name":            full_name,
@@ -529,7 +517,6 @@ def analyze():
         "gemini_sections": gemini_sections,
         "question":        question,
         "question_answer": question_answer,
-        "email_sent":      email_sent,
         "elapsed":         elapsed,
     })
 
