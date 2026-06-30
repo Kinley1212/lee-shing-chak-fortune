@@ -368,7 +368,43 @@ footer{
   .stats-row{grid-template-columns:1fr}
   .footer-inner{grid-template-columns:1fr}
 }
+
+/* ══ Flatpickr 主題覆蓋 ══════════════════════ */
+.flatpickr-calendar{
+  background:var(--card);border:1px solid var(--border);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);border-radius:12px;
+  font-family:inherit;
+}
+.flatpickr-months,.flatpickr-weekdays{background:var(--card)}
+.flatpickr-month{color:var(--gold)}
+.flatpickr-current-month,.flatpickr-current-month input,.flatpickr-current-month .numInputWrapper{
+  color:var(--gold);font-size:.95rem;
+}
+.flatpickr-current-month .numInputWrapper span.arrowUp:after{border-bottom-color:var(--gold)}
+.flatpickr-current-month .numInputWrapper span.arrowDown:after{border-top-color:var(--gold)}
+.flatpickr-monthDropdown-months{background:var(--card);color:var(--gold)}
+span.flatpickr-weekday{color:var(--text2);font-size:.75rem}
+.flatpickr-day{color:var(--text);border-radius:6px}
+.flatpickr-day:hover,.flatpickr-day:focus{background:var(--card2);border-color:var(--border)}
+.flatpickr-day.selected,.flatpickr-day.selected:hover{
+  background:var(--red);border-color:var(--red);color:#fff;
+}
+.flatpickr-day.today{border-color:rgba(211,168,98,.5)}
+.flatpickr-day.today:hover{background:var(--card2)}
+.flatpickr-day.prevMonthDay,.flatpickr-day.nextMonthDay{color:var(--text3)}
+.flatpickr-prev-month svg,.flatpickr-next-month svg{fill:var(--gold)}
+.flatpickr-prev-month:hover svg,.flatpickr-next-month:hover svg{fill:var(--gold2)}
+.numInputWrapper:hover{background:transparent}
+.numInputWrapper input{color:var(--gold)}
+.flatpickr-time{background:var(--card);border-top:1px solid var(--border)}
+.flatpickr-time input,.flatpickr-time .flatpickr-am-pm{
+  color:var(--gold);background:transparent;
+}
+.flatpickr-time input:hover,.flatpickr-time .flatpickr-am-pm:hover{background:var(--card2)}
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
 </head>
 <body>
 
@@ -414,11 +450,11 @@ footer{
         <div class="form-row" style="margin-top:12px">
           <div class="form-group" style="margin-bottom:0">
             <label for="birthdate">出生日期</label>
-            <input type="date" id="birthdate" required/>
+            <input type="text" id="birthdate" placeholder="選擇出生日期" required readonly style="cursor:pointer"/>
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label for="birthtime">出生時間 <span class="opt">（選填）</span></label>
-            <input type="time" id="birthtime" placeholder="--:--"/>
+            <input type="text" id="birthtime" placeholder="選擇時間（選填）" readonly style="cursor:pointer"/>
           </div>
         </div>
 
@@ -705,6 +741,24 @@ function resetForm() {
   document.getElementById("result-section").classList.remove("visible");
   document.getElementById("form-card").scrollIntoView({behavior:"smooth"});
 }
+</script>
+<script>
+flatpickr("#birthdate", {
+  locale: "zh_tw",
+  dateFormat: "Y-m-d",
+  maxDate: "today",
+  disableMobile: true,
+  allowInput: false,
+});
+flatpickr("#birthtime", {
+  locale: "zh_tw",
+  enableTime: true,
+  noCalendar: true,
+  time_24hr: true,
+  dateFormat: "H:i",
+  disableMobile: true,
+  allowInput: false,
+});
 </script>
 </body>
 </html>

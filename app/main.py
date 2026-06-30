@@ -9,10 +9,8 @@ import os
 import re
 import sys
 import time
-import smtplib
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import json
+import requests
 from datetime import date
 
 sys.path.insert(0, os.path.dirname(__file__))
@@ -32,11 +30,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = "gemini-2.5-flash"
 gemini_client  = genai.Client(api_key=GEMINI_API_KEY)
 
-# ── SMTP 設定 ────────────────────────────────────────────
-SMTP_HOST = os.getenv("SMTP_HOST", "")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASS = os.getenv("SMTP_PASS", "")
+# ── Resend 設定 ───────────────────────────────────────────
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_FROM    = "李丞責博士 <onboarding@resend.dev>"
 
 # ── 載入 system prompt ──────────────────────────────────
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -212,11 +208,9 @@ def chat():
 def send_report_email(to_addr: str, full_name: str, shengxiao: str,
                       bazi_str: str, lunar: str, wuxing_summary: str,
                       sections: dict, question: str, question_answer: str) -> bool:
-    """發送運勢報告至用戶郵箱，返回是否成功。"""
-    if not all([SMTP_HOST, SMTP_USER, SMTP_PASS, to_addr]):
+    """使用 Resend API 發送運勢報告，返回是否成功。"""
+    if not RESEND_API_KEY or not to_addr:
         return False
-
-    wuxing_map = {"金": "🥇", "木": "🌿", "水": "💧", "火": "🔥", "土": "🪨"}
 
     def p(text: str) -> str:
         return "".join(f"<p>{line}</p>" for line in text.splitlines() if line.strip())
@@ -287,22 +281,27 @@ def send_report_email(to_addr: str, full_name: str, shengxiao: str,
 </table>
 </body></html>"""
 
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"【李丞責博士】{full_name} 的2026馬年個人運程分析報告"
-    msg["From"]    = f"李丞責博士 <{SMTP_USER}>"
-    msg["To"]      = to_addr
-    msg.attach(MIMEText(html, "html", "utf-8"))
-
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=15) as server:
-            server.ehlo()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, to_addr, msg.as_string())
-        print(f"[EMAIL OK] 已發送至 {to_addr}", flush=True)
-        return True
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from":    RESEND_FROM,
+                "to":      [to_addr],
+                "subject": f"【李丞責博士】{full_name} 的2026馬年個人運程分析報告",
+                "html":    html,
+            },
+            timeout=20,
+        )
+        if resp.status_code in (200, 201):
+            print(f"[EMAIL OK] 已發送至 {to_addr}", flush=True)
+            return True
+        else:
+            print(f"[EMAIL ERROR] {resp.status_code}: {resp.text}", flush=True)
+            return False
     except Exception as e:
         print(f"[EMAIL ERROR] {type(e).__name__}: {e}", flush=True)
         return False
@@ -310,25 +309,34 @@ def send_report_email(to_addr: str, full_name: str, shengxiao: str,
 
 @app.route("/test-email")
 def test_email():
-    """SMTP 連線測試（僅限調試用）"""
-    to = request.args.get("to", SMTP_USER)
+    """Resend API 發信測試"""
+    to = request.args.get("to", "")
+    if not to:
+        return jsonify({"error": "需要 ?to=收件人郵箱"}), 400
     import traceback
-    result = {"host": SMTP_HOST, "port": SMTP_PORT, "user": SMTP_USER, "to": to}
     try:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, context=ctx, timeout=15) as server:
-            server.ehlo()
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, to,
-                f"Subject: SMTP Test\r\nFrom: {SMTP_USER}\r\nTo: {to}\r\n\r\nSMTP test OK")
-        result["status"] = "success"
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {RESEND_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "from":    RESEND_FROM,
+                "to":      [to],
+                "subject": "李丞責博士 · 郵件測試",
+                "html":    "<h1>測試成功</h1><p>郵件發送功能正常。</p>",
+            },
+            timeout=20,
+        )
+        return jsonify({
+            "status":   "success" if resp.status_code in (200, 201) else "error",
+            "http_code": resp.status_code,
+            "response":  resp.json() if resp.content else {},
+        })
     except Exception as e:
-        result["status"] = "error"
-        result["error"]  = f"{type(e).__name__}: {e}"
-        result["trace"]  = traceback.format_exc()
-    return jsonify(result)
+        return jsonify({"status": "error", "error": f"{type(e).__name__}: {e}",
+                        "trace": traceback.format_exc()})
 
 
 @app.route("/analyze", methods=["POST"])
