@@ -1,83 +1,102 @@
-# 李丞責 2026 丙午年運勢 AI
+### Live Demo: https://lczai-chatbot.onrender.com
 
-一個從零到一、實際上線運行中的 AI 運勢問答網站。使用者輸入生辰資訊後，AI 會結合玄學知識庫給出個人化五行運勢分析，並可選擇留下 email 收取完整報告。
+---
 
-**🔗 Live Demo：** https://lczai-chatbot.onrender.com
-（網站有進站密碼保護，非公開流量，如需試用密碼請與我聯繫）
+## Project Overview
 
-![運勢查詢主頁](./docs/screenshot-form.png)
-![運勢報告範例](./docs/screenshot-report-1.png)
-![運勢報告細節](./docs/screenshot-report-2.png)
+This project is a **client-commissioned web application** developed between **June 2026 and July 2026**, currently live and in active use.
 
-## 這個專案在做什麼
+**Lee Shing Chak Fortune AI** is a RAG-based fortune-telling chatbot built for a professional fengshui and BaZi (Chinese astrology) consultant. Users submit their birth information and the system generates a personalized Chinese five-elements fortune analysis for the year, grounded in the consultant's published book.
 
-不是一個 demo 或練習作品，而是**真實客戶（命理師）委託開發並持續維運中**的產品，涵蓋從需求溝通、功能迭代到上線維護的完整流程：
+Built solo end to end — RAG pipeline, frontend, email delivery, deployment — and iterated through multiple rounds of direct client feedback (UI theme, input methods, access control) while maintaining the live production environment.
 
-- 使用者輸入生辰八字，AI 根據書籍內容 + RAG 知識庫給出個人化五行運勢解讀
-- 可選填 email，自動寄送 HTML 格式完整運勢報告到信箱
-- 進站密碼保護，避免未授權流量消耗免費資源
-- 隨著客戶反饋持續打磨 UI（淺色主題、紅金配色、時間輸入方式優化等）
+---
 
-## 功能特色
+## Approach & Methods
 
-- 🔮 **RAG 知識庫問答**：以命理書籍內容為知識庫，結合關鍵字檢索 + Gemini API 生成個人化回答
-- 📧 **自動寄信**：使用者留 email 後，前端直接透過 EmailJS 寄送 HTML 運勢報告，無需後端 SMTP
-- 🔒 **進站密碼保護**：全站登入驗證，未授權無法瀏覽頁面或呼叫 API
-- 🎨 **持續迭代的 UI**：從初版逐步優化為淺色主題、紅金主色調、鍵盤輸入時間選擇器
-- ☁️ **雲端部署**：透過 Render 自動化部署，GitHub push 後自動上線
+- **Data Processing:**
+  - Extracted text from the client's source book (PDF) using PyMuPDF
+  - Structured the extracted content into a JSON knowledge base
 
-## 技術棧
+- **Fortune Analysis Engine:**
+  - Computed BaZi (four pillars) and five-elements distribution from user birth data
+  - Combined keyword-based retrieval over the knowledge base with the Gemini API to generate personalized narrative analysis
 
-- **後端**：Python / Flask
-- **AI**：Google Gemini 1.5 Flash
-- **知識庫檢索**：JSON + 關鍵字匹配 RAG
-- **PDF 資料提取**：PyMuPDF (fitz)
-- **寄信**：EmailJS（瀏覽器端直接發信）
-- **部署**：Render（GitHub 自動部署）
+- **Delivery:**
+  - Implemented client-side email delivery of the full HTML report via EmailJS, removing the need for a backend mail server
 
-## 專案結構
+---
+
+## Technical Challenges
+
+- **Unreliable outbound email on a free-tier host:** Initial email delivery via a backend SMTP/API integration was inconsistent on Render's free tier. Iterated through a third-party HTTP email API, then Gmail SMTP with forced IPv4, before moving delivery to the client side via EmailJS — eliminating the backend mail dependency entirely and resolving the reliability issue.
+- **Cold start on free hosting:** Render's free tier spins the service down after inactivity, causing a visible delay and a platform loading screen on the first request after idle. Evaluated always-on alternatives and keep-alive strategies to balance cost against user experience for a client-facing site.
+
+---
+
+## Key Features
+
+- Personalized BaZi and five-elements fortune analysis generated from user birth data
+- RAG-based question answering grounded in the client's published book
+- Automated email delivery of the full report
+- Site-wide password protection to restrict access to authorized traffic
+- Iteratively refined UI based on client feedback
+
+---
+
+## Tools & Technologies
+
+- **Backend:** Python, Flask
+- **AI:** Google Gemini 1.5 Flash
+- **Knowledge Retrieval:** JSON-based keyword matching RAG
+- **PDF Extraction:** PyMuPDF (fitz)
+- **Email:** EmailJS (client-side delivery)
+- **Deployment:** Render (continuous deployment from GitHub)
+
+---
+
+## Project Structure
 
 ```
 lee-shing-chak-fortune/
 ├── data/
-│   ├── raw/              原始PDF及提取文字
-│   └── knowledge/        處理好的JSON知識庫
+│   ├── raw/              Source PDF and extracted text
+│   └── knowledge/        Processed JSON knowledge base
 ├── scripts/
-│   ├── extract_pdf.py    PDF文字提取
-│   ├── build_knowledge.py 知識庫建立
-│   └── generate_qa.py    訓練數據生成
+│   ├── extract_pdf.py    PDF text extraction
+│   ├── build_knowledge.py Knowledge base builder
+│   └── generate_qa.py    Training data generation
 ├── app/
-│   ├── main.py           Flask主程式
-│   ├── rag.py            RAG搜尋引擎
+│   ├── main.py           Flask application
+│   ├── rag.py            RAG search engine
 │   └── templates/
-│       ├── index.html    聊天主介面
-│       └── login.html    進站密碼頁
+│       ├── index.html    Main chat interface
+│       └── login.html    Access control page
 ├── training/
-│   └── qa_data.jsonl     Fine-tuning訓練數據
+│   └── qa_data.jsonl     Fine-tuning training data
 ├── .env.example
 ├── requirements.txt
 └── README.md
 ```
 
-## 本機執行
+## Screenshots
+
+![Fortune query form](./docs/screenshot-form.png)
+![Sample fortune report](./docs/screenshot-report-1.png)
+![Fortune report detail](./docs/screenshot-report-2.png)
+
+## Local Setup
 
 ```bash
 pip3 install -r requirements.txt
 cp .env.example .env
-# 編輯 .env，填入 Gemini API Key、SITE_PASSWORD 等設定
+# Edit .env with your Gemini API key, SITE_PASSWORD, etc.
 
-python3 scripts/extract_pdf.py       # 提取PDF文字
-python3 scripts/build_knowledge.py   # 建立知識庫
+python3 scripts/extract_pdf.py       # Extract PDF text
+python3 scripts/build_knowledge.py   # Build knowledge base
 
 cd app
 python3 main.py
 ```
 
-瀏覽器打開 http://localhost:5000
-
-## 作者
-
-[@Kinley1212](https://github.com/Kinley1212) — 獨立開發、部署與維運此專案
-
----
-玄學內容僅供參考，一切以個人判斷為準。
+Open http://localhost:5000 in your browser.
