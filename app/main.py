@@ -32,6 +32,8 @@ from bazi import calculate_bazi
 # ── Gemini 設定 ─────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = "gemini-2.5-flash"
+EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "gemini-embedding-001")
+EMBEDDING_DIMENSIONS = int(os.getenv("RAG_EMBEDDING_DIMENSIONS", "768"))
 gemini_client  = genai.Client(api_key=GEMINI_API_KEY)
 
 # ── Gmail SMTP ────────────────────────────────────────────
@@ -71,7 +73,28 @@ app.secret_key = os.getenv("SECRET_KEY", "lczai-2026-site-gate-secret")
 app.permanent_session_lifetime = timedelta(days=30)
 CORS(app)
 
-rag = RAGEngine()
+def embed_retrieval_query(query: str) -> list[float]:
+    """Embed one search query; document vectors are precomputed offline."""
+    response = gemini_client.models.embed_content(
+        model=EMBEDDING_MODEL,
+        contents=query,
+        config={
+            "task_type": "RETRIEVAL_QUERY",
+            "output_dimensionality": EMBEDDING_DIMENSIONS,
+        },
+    )
+    if not response.embeddings or not response.embeddings[0].values:
+        raise RuntimeError("Embedding API returned an empty query vector")
+    return list(response.embeddings[0].values)
+
+
+rag = RAGEngine(
+    query_embedder=embed_retrieval_query if GEMINI_API_KEY else None,
+    semantic_weight=float(os.getenv("RAG_SEMANTIC_WEIGHT", "0.65")),
+    min_semantic_score=float(os.getenv("RAG_MIN_SEMANTIC_SCORE", "0.62")),
+    expected_embedding_model=EMBEDDING_MODEL,
+    expected_embedding_dimensions=EMBEDDING_DIMENSIONS,
+)
 
 # ── 網站密碼保護 ─────────────────────────────────────────
 SITE_PASSWORD = os.getenv("SITE_PASSWORD", "88888888")
@@ -212,6 +235,8 @@ def health():
     return jsonify({
         "status": "ok",
         "chunks_loaded": rag.chunk_count,
+        "semantic_search": rag.semantic_enabled,
+        "embeddings_loaded": rag.embedding_count,
         "gemini_model": GEMINI_MODEL,
         "api_key_set": bool(GEMINI_API_KEY),
     })
@@ -425,7 +450,9 @@ def analyze():
     seen_ids: set = set()
 
     for topic_zh, topic_key in topic_map:
-        results = rag.search(f"屬{shengxiao} {topic_zh}", top_k=5)
+        # Exact zodiac + topic metadata is deterministic; top_k=1 also avoids an
+        # unnecessary query-embedding API call for each of the six report sections.
+        results = rag.search(f"屬{shengxiao} {topic_zh}", top_k=1)
         chunk_text = ""
         for chunk in results:
             cid = chunk.get("id", id(chunk))

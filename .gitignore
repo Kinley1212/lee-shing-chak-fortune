@@ -19,7 +19,8 @@ data/raw/
 # 雜項目錄
 Chat history/
 training/
-scripts/
+scripts/*
+!scripts/build_embedding_index.py
 
 # macOS
 .DS_Store

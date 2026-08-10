@@ -5,9 +5,12 @@ RAG 搜尋引擎：四優先級匹配策略
 優先級1：生肖+主題雙匹配 → 優先級2：生肖匹配 → 優先級3：主題匹配 → 優先級4：全文關鍵字
 """
 
+import hashlib
 import json
+import math
 import os
 import re
+from collections.abc import Callable
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -15,9 +18,21 @@ CHUNKS_PATH        = os.path.join(BASE, "data", "knowledge", "book_2026_chunks.j
 LINGQIAN_PATH      = os.path.join(BASE, "data", "knowledge", "bei_di_ling_qian_chunks.json")
 LINGQIAN_OLD_PATH  = os.path.join(BASE, "data", "knowledge", "bei_di_ling_qian.json")
 PROFILE_PATH       = os.path.join(BASE, "data", "knowledge", "dr_lee_profile.md")
+EMBEDDINGS_PATH    = os.path.join(BASE, "data", "knowledge", "embedding_index.json")
 
 ZODIACS = ["鼠", "牛", "虎", "兔", "龍", "蛇", "馬", "羊", "猴", "雞", "狗", "豬"]
-TOPICS  = ["財運", "感情", "事業", "健康", "風水", "預言", "佈局"]
+
+TOPIC_ALIASES: dict[str, list[str]] = {
+    "整體運勢": ["整體運勢", "總運", "全年運勢", "今年運程"],
+    "財運": ["財運", "金錢", "收入", "投資", "求財", "賺錢"],
+    "感情": ["感情", "愛情", "桃花", "姻緣", "婚姻", "伴侶"],
+    "事業": ["事業", "工作", "職場", "轉工", "跳槽", "升職", "創業"],
+    "健康": ["健康", "身體", "不舒服", "疾病", "睡眠", "精神狀態"],
+    "風水": ["風水", "屋企", "住宅", "家居", "氣場", "方位", "擺設"],
+    "預言": ["預言", "趨勢", "大環境"],
+    "佈局": ["佈局", "布局", "擺陣", "開運"],
+    "化解建議": ["化解建議", "化解", "改善方法", "補救方法"],
+}
 
 ZODIAC_ALIASES: dict[str, list[str]] = {
     "鼠": ["鼠", "子鼠", "屬鼠"],
@@ -57,37 +72,124 @@ HEXAGRAM_ALIASES: dict[str, list[str]] = {
 }
 
 
+def chunk_key(collection: str, chunk: dict, position: int = 0) -> str:
+    """Return a stable key shared by the offline indexer and runtime retriever."""
+    return f"{collection}:{chunk.get('id') or position}"
+
+
+def corpus_hash(chunks: list[dict], lingqian_chunks: list[dict]) -> str:
+    """Fingerprint retrieval-relevant content so stale vector indexes are rejected."""
+    digest = hashlib.sha256()
+    for collection, items in (("book", chunks), ("lingqian", lingqian_chunks)):
+        for position, chunk in enumerate(items):
+            payload = {
+                "key": chunk_key(collection, chunk, position),
+                "text": chunk.get("text", ""),
+                "zodiac": chunk.get("zodiac"),
+                "topic": chunk.get("topic"),
+                "chapter": chunk.get("chapter"),
+                "hexagram": chunk.get("hexagram"),
+            }
+            digest.update(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    return digest.hexdigest()
+
+
 class RAGEngine:
-    def __init__(self):
+    def __init__(
+        self,
+        query_embedder: Callable[[str], list[float]] | None = None,
+        *,
+        chunks_path: str = CHUNKS_PATH,
+        lingqian_path: str = LINGQIAN_PATH,
+        lingqian_old_path: str = LINGQIAN_OLD_PATH,
+        profile_path: str = PROFILE_PATH,
+        embeddings_path: str = EMBEDDINGS_PATH,
+        semantic_weight: float = 0.65,
+        min_semantic_score: float = 0.62,
+        expected_embedding_model: str | None = None,
+        expected_embedding_dimensions: int | None = None,
+    ):
         self.chunks: list[dict] = []
         self.lingqian_chunks: list[dict] = []
         self.profile_text: str = ""
+        self.query_embedder = query_embedder
+        self.semantic_weight = min(max(semantic_weight, 0.0), 1.0)
+        self.min_semantic_score = min_semantic_score
+        self.expected_embedding_model = expected_embedding_model
+        self.expected_embedding_dimensions = expected_embedding_dimensions
+        self.embedding_model = ""
+        self.embeddings: dict[str, list[float]] = {}
+        self.semantic_enabled = False
+        self._query_cache: dict[str, list[float]] = {}
+        self._paths = {
+            "chunks": chunks_path,
+            "lingqian": lingqian_path,
+            "lingqian_old": lingqian_old_path,
+            "profile": profile_path,
+            "embeddings": embeddings_path,
+        }
         self._load_all()
 
     def _load_all(self):
-        if os.path.exists(CHUNKS_PATH):
-            with open(CHUNKS_PATH, encoding="utf-8") as f:
+        chunks_path = self._paths["chunks"]
+        profile_path = self._paths["profile"]
+        lingqian_path = self._paths["lingqian"]
+        lingqian_old_path = self._paths["lingqian_old"]
+
+        if os.path.exists(chunks_path):
+            with open(chunks_path, encoding="utf-8") as f:
                 self.chunks = json.load(f)
             print(f"[RAG] 知識庫載入：{len(self.chunks)} 塊")
         else:
-            print(f"[RAG] 警告：找不到 {CHUNKS_PATH}")
+            print(f"[RAG] 警告：找不到 {chunks_path}")
 
-        if os.path.exists(PROFILE_PATH):
-            with open(PROFILE_PATH, encoding="utf-8") as f:
+        if os.path.exists(profile_path):
+            with open(profile_path, encoding="utf-8") as f:
                 self.profile_text = f.read()
             print("[RAG] 身份資料載入完成")
 
-        if os.path.exists(LINGQIAN_PATH):
-            with open(LINGQIAN_PATH, encoding="utf-8") as f:
+        if os.path.exists(lingqian_path):
+            with open(lingqian_path, encoding="utf-8") as f:
                 self.lingqian_chunks = json.load(f)
             print(f"[RAG] 北帝靈簽載入完成（{len(self.lingqian_chunks)} 卦）")
-        elif os.path.exists(LINGQIAN_OLD_PATH):
+        elif os.path.exists(lingqian_old_path):
             # 向後兼容：舊版全文格式
-            with open(LINGQIAN_OLD_PATH, encoding="utf-8") as f:
+            with open(lingqian_old_path, encoding="utf-8") as f:
                 old = json.load(f)
             self.lingqian_chunks = [{"hexagram": "全文", "text": old.get("text", "")[:2000],
                                      "source": "北帝靈簽詳解"}]
             print("[RAG] 北帝靈簽（舊版全文）載入完成")
+
+        self._load_embeddings()
+
+    def _load_embeddings(self):
+        path = self._paths["embeddings"]
+        if not self.query_embedder or not os.path.exists(path):
+            print("[RAG] 語義檢索未啟用，使用規則與關鍵字模式")
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                index = json.load(f)
+            expected_hash = corpus_hash(self.chunks, self.lingqian_chunks)
+            if index.get("corpus_hash") != expected_hash:
+                print("[RAG] 向量索引已過期，請重新執行 build_embedding_index.py")
+                return
+            if self.expected_embedding_model and index.get("model") != self.expected_embedding_model:
+                print("[RAG] 向量索引模型不符，請重新執行 build_embedding_index.py")
+                return
+            if self.expected_embedding_dimensions and index.get("dimensions") != self.expected_embedding_dimensions:
+                print("[RAG] 向量索引維度不符，請重新執行 build_embedding_index.py")
+                return
+            embeddings = index.get("embeddings", {})
+            if not isinstance(embeddings, dict) or not embeddings:
+                print("[RAG] 向量索引為空，使用關鍵字模式")
+                return
+            self.embeddings = embeddings
+            self.embedding_model = index.get("model", "")
+            self.semantic_enabled = True
+            print(f"[RAG] 語義索引載入：{len(embeddings)} 個向量（{self.embedding_model}）")
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            print(f"[RAG] 向量索引載入失敗，使用關鍵字模式：{exc}")
 
     # ── 解析查詢 ─────────────────────────────────────
 
@@ -99,16 +201,90 @@ class RAGEngine:
         return found
 
     def _extract_topics(self, query: str) -> list[str]:
-        return [t for t in TOPICS if t in query]
+        return [topic for topic, aliases in TOPIC_ALIASES.items() if any(alias in query for alias in aliases)]
 
     def _keyword_score(self, chunk: dict, query: str) -> float:
         """關鍵字得分 × 塊權重（第六章週運塊 weight=0.5，其餘 weight=1.0）"""
         text = chunk.get("text", "")
-        score = 0
-        for word in re.findall(r"[一-鿿]{2,}", query):
-            score += text.count(word)
+        terms: set[str] = set(re.findall(r"[A-Za-z0-9]{2,}", query.lower()))
+        for sequence in re.findall(r"[一-鿿]+", query):
+            if len(sequence) >= 2:
+                terms.add(sequence)
+                terms.update(sequence[index:index + 2] for index in range(len(sequence) - 1))
+        score = sum(text.lower().count(term) for term in terms)
         weight = chunk.get("weight", 1.0)
         return score * weight
+
+    @staticmethod
+    def _cosine_similarity(left: list[float], right: list[float]) -> float:
+        if not left or len(left) != len(right):
+            return -1.0
+        dot = sum(a * b for a, b in zip(left, right))
+        left_norm = math.sqrt(sum(value * value for value in left))
+        right_norm = math.sqrt(sum(value * value for value in right))
+        if not left_norm or not right_norm:
+            return -1.0
+        return dot / (left_norm * right_norm)
+
+    def _embed_query(self, query: str) -> list[float] | None:
+        if not self.semantic_enabled or not self.query_embedder:
+            return None
+        if query in self._query_cache:
+            return self._query_cache[query]
+        try:
+            vector = self.query_embedder(query)
+            if not vector:
+                return None
+            if len(self._query_cache) >= 128:
+                self._query_cache.pop(next(iter(self._query_cache)))
+            self._query_cache[query] = vector
+            return vector
+        except Exception as exc:
+            # Retrieval must remain available when the embedding API is unavailable.
+            print(f"[RAG] 查詢向量生成失敗，回退關鍵字模式：{exc}")
+            return None
+
+    def _rank(
+        self,
+        pool: list[dict],
+        query: str,
+        *,
+        collection: str,
+        allow_zero_match: bool = False,
+        use_semantic: bool = True,
+    ) -> list[dict]:
+        if not pool:
+            return []
+
+        query_vector = self._embed_query(query) if use_semantic else None
+        lexical_scores = [self._keyword_score(chunk, query) for chunk in pool]
+        max_lexical = max(lexical_scores, default=0.0)
+        scored: list[tuple[float, dict]] = []
+
+        for position, (chunk, lexical_raw) in enumerate(zip(pool, lexical_scores)):
+            lexical = lexical_raw / max_lexical if max_lexical > 0 else 0.0
+            vector = self.embeddings.get(chunk_key(collection, chunk, position))
+            semantic = self._cosine_similarity(query_vector, vector) if query_vector and vector else -1.0
+            has_semantic_match = semantic >= self.min_semantic_score
+
+            if not allow_zero_match and lexical_raw <= 0 and not has_semantic_match:
+                continue
+
+            if semantic >= -0.5:
+                score = self.semantic_weight * max(semantic, 0.0) + (1 - self.semantic_weight) * lexical
+                method = "hybrid" if lexical_raw > 0 else "semantic"
+            else:
+                score = lexical
+                method = "keyword" if lexical_raw > 0 else "metadata"
+
+            result = dict(chunk)
+            result["_retrieval_score"] = round(score, 4)
+            result["_semantic_score"] = round(semantic, 4) if semantic >= -0.5 else None
+            result["_retrieval_method"] = method
+            scored.append((score, result))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [chunk for _, chunk in scored]
 
     def _search_lingqian(self, query: str) -> list[dict]:
         """搜尋靈簽：優先匹配具名卦，否則按關鍵字評分"""
@@ -117,18 +293,13 @@ class RAGEngine:
             if any(a in query for a in aliases):
                 for c in self.lingqian_chunks:
                     if c.get("hexagram") == hexagram:
-                        return [c]
+                        result = dict(c)
+                        result["_retrieval_score"] = 1.0
+                        result["_retrieval_method"] = "exact"
+                        return [result]
 
-        # 關鍵字評分
-        scored = []
-        for c in self.lingqian_chunks:
-            text = c.get("text", "")
-            score = sum(text.count(w) for w in re.findall(r"[一-鿿]{2,}", query))
-            scored.append((score, c))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        # 有得分才返回，否則返回首卦作示例
-        best = scored[0][1] if scored and scored[0][0] > 0 else (self.lingqian_chunks[0] if self.lingqian_chunks else None)
-        return [best] if best else []
+        # 沒有具名卦時用混合檢索；無相關結果不再錯誤返回第一卦。
+        return self._rank(self.lingqian_chunks, query, collection="lingqian")[:1]
 
     # ── 四優先級搜尋 ──────────────────────────────────
 
@@ -153,11 +324,6 @@ class RAGEngine:
         zodiacs = self._extract_zodiacs(query)
         topics  = self._extract_topics(query)
 
-        def rank(pool: list[dict]) -> list[dict]:
-            scored = [(self._keyword_score(c, query), c) for c in pool]
-            scored.sort(key=lambda x: x[0], reverse=True)
-            return [c for _, c in scored]
-
         seen: set = set()
         results: list[dict] = []
 
@@ -172,28 +338,40 @@ class RAGEngine:
 
         # 優先級1：生肖 + 主題雙匹配
         if zodiacs and topics:
-            add(rank([c for c in self.chunks
-                      if c.get("zodiac") in zodiacs and c.get("topic") in topics]))
+            add(self._rank(
+                [c for c in self.chunks if c.get("zodiac") in zodiacs and c.get("topic") in topics],
+                query, collection="book", allow_zero_match=True, use_semantic=False,
+            ))
 
         # 優先級2：只匹配生肖
         if zodiacs and len(results) < top_k:
-            add(rank([c for c in self.chunks if c.get("zodiac") in zodiacs]))
+            add(self._rank(
+                [c for c in self.chunks if c.get("zodiac") in zodiacs],
+                query, collection="book", allow_zero_match=True,
+            ))
 
         # 優先級3：只匹配主題
         if topics and len(results) < top_k:
-            add(rank([c for c in self.chunks if c.get("topic") in topics]))
+            topic_pool = [
+                c for c in self.chunks
+                if c.get("topic") in topics and (zodiacs or not c.get("zodiac"))
+            ]
+            add(self._rank(
+                topic_pool,
+                query, collection="book", allow_zero_match=True,
+            ))
 
         # 優先級4：全文關鍵字搜尋
         if len(results) < top_k:
-            add(rank(self.chunks))
-
-        if not results:
-            return [{"text": self.profile_text, "source": "身份資料", "zodiac": None}]
+            fallback_pool = self.chunks if zodiacs else [c for c in self.chunks if not c.get("zodiac")]
+            add(self._rank(fallback_pool, query, collection="book"))
 
         return results[:top_k]
 
     def get_context(self, query: str, top_k: int = 3) -> str:
         results = self.search(query, top_k=top_k)
+        if not results:
+            return "知識庫中沒有檢索到足夠相關的參考資料。請勿虛構書本內容，並向用戶說明資料不足。"
         parts = []
         for i, chunk in enumerate(results, 1):
             source = chunk.get("source") or chunk.get("chapter", "2026全書")
@@ -203,7 +381,15 @@ class RAGEngine:
                 label = f"屬{zodiac}" + (f"·{topic}" if topic and topic != "其他" else "")
             else:
                 label = source
-            parts.append(f"【參考資料{i}｜{label}】\n{chunk['text']}")
+            source = chunk.get("source") or chunk.get("chapter", "2026全書")
+            page_start = chunk.get("page_start")
+            page_end = chunk.get("page_end")
+            if page_start is not None:
+                pages = str(page_start) if page_end in (None, page_start) else f"{page_start}-{page_end}"
+                citation = f"｜來源：{source}，頁碼：{pages}"
+            else:
+                citation = f"｜來源：{source}"
+            parts.append(f"【參考資料{i}｜{label}{citation}】\n{chunk['text']}")
 
         return (
             f"以下是參考資料：\n\n"
@@ -218,3 +404,7 @@ class RAGEngine:
     @property
     def lingqian_count(self) -> int:
         return len(self.lingqian_chunks)
+
+    @property
+    def embedding_count(self) -> int:
+        return len(self.embeddings)

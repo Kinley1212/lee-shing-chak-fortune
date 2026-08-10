@@ -20,7 +20,9 @@ Built solo end to end — RAG pipeline, frontend, email delivery, deployment —
 
 - **Fortune Analysis Engine:**
   - Computed BaZi (four pillars) and five-elements distribution from user birth data
-  - Combined keyword-based retrieval over the knowledge base with the Gemini API to generate personalized narrative analysis
+  - Combined deterministic zodiac/topic filters with keyword and semantic retrieval over the knowledge base
+  - Added relevance thresholds, source/page metadata, stale-index detection, and automatic keyword fallback when the embedding API is unavailable
+  - Used Gemini to generate personalized narrative analysis from the retrieved source passages
 
 - **Delivery:**
   - Implemented client-side email delivery of the full HTML report via EmailJS, removing the need for a backend mail server
@@ -47,8 +49,8 @@ Built solo end to end — RAG pipeline, frontend, email delivery, deployment —
 ## Tools & Technologies
 
 - **Backend:** Python, Flask
-- **AI:** Google Gemini 1.5 Flash
-- **Knowledge Retrieval:** JSON-based keyword matching RAG
+- **AI:** Google Gemini 2.5 Flash and Gemini Embedding
+- **Knowledge Retrieval:** Hybrid RAG (metadata filters + keyword scoring + semantic similarity)
 - **PDF Extraction:** PyMuPDF (fitz)
 - **Email:** EmailJS (client-side delivery)
 - **Deployment:** Render (continuous deployment from GitHub)
@@ -65,6 +67,7 @@ lee-shing-chak-fortune/
 ├── scripts/
 │   ├── extract_pdf.py    PDF text extraction
 │   ├── build_knowledge.py Knowledge base builder
+│   ├── build_embedding_index.py Precompute the semantic retrieval index
 │   └── generate_qa.py    Training data generation
 ├── app/
 │   ├── main.py           Flask application
@@ -94,9 +97,15 @@ cp .env.example .env
 
 python3 scripts/extract_pdf.py       # Extract PDF text
 python3 scripts/build_knowledge.py   # Build knowledge base
+python3 scripts/build_embedding_index.py  # Build semantic index after knowledge changes
 
 cd app
 python3 main.py
 ```
 
 Open http://localhost:5000 in your browser.
+
+The semantic index is checked against a hash of the knowledge corpus at startup. If it is
+missing, stale, or the query embedding request fails, retrieval automatically falls back to
+the existing metadata and keyword strategy. `GET /health` reports whether semantic search
+is active and how many document embeddings were loaded.
