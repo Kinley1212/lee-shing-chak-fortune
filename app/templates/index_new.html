@@ -251,15 +251,6 @@ textarea{resize:vertical;min-height:70px;max-height:140px;line-height:1.5}
 }
 .report-source:empty{display:none}
 
-.grounding-summary{
-  display:flex;align-items:center;justify-content:center;gap:9px;
-  margin:-16px auto 22px;padding:10px 16px;max-width:420px;
-  border:1px solid rgba(184,134,11,.28);border-radius:999px;
-  background:rgba(184,134,11,.06);color:var(--gold3);
-  font-size:.76rem;font-weight:700;
-}
-.grounding-dot{width:8px;height:8px;border-radius:50%;background:#279348;box-shadow:0 0 0 4px rgba(39,147,72,.1)}
-
 .qa-card{
   background:linear-gradient(135deg,rgba(153,15,35,.04),rgba(153,15,35,.02));
   border:1px solid rgba(153,15,35,.25);
@@ -500,11 +491,6 @@ footer{
     <p id="result-subtitle"></p>
   </div>
 
-  <div class="grounding-summary" id="grounding-summary">
-    <span class="grounding-dot"></span>
-    <span>正在核對原書資料</span>
-  </div>
-
   <!-- 命盤基本資料 -->
   <div class="bazi-card" id="bazi-card">
     <h3>▸ 命盤基本資料</h3>
@@ -729,19 +715,10 @@ function renderResult(data, fullName, email) {
 
   // 六個報告段落各自顯示實際檢索來源，不由 Gemini 生成頁碼或書名
   const citations = data.rag_citations || {};
-  const sourceCount = Object.values(citations).filter(Boolean).length;
-  document.querySelector("#grounding-summary span:last-child").textContent =
-    `已核對 ${sourceCount}/6 個原書章節，每段均附資料依據`;
   const renderSource = (elementId, citation) => {
     const el = document.getElementById(elementId);
     if (!citation) { el.textContent = ""; return; }
-    let pageText = "";
-    if (citation.page_start !== null && citation.page_start !== undefined) {
-      pageText = ` · 第${citation.page_start}`;
-      if (citation.page_end && citation.page_end !== citation.page_start) pageText += `–${citation.page_end}`;
-      pageText += "頁";
-    }
-    el.textContent = `原書依據｜${citation.source}${pageText} · 屬${citation.zodiac}・${citation.topic}`;
+    el.textContent = `資料依據：${citation.source}`;
   };
   ["overall","wealth","career","love","health","remedy"].forEach(key => {
     renderSource(key + "-source", citations[key]);
@@ -755,7 +732,7 @@ function renderResult(data, fullName, email) {
     document.getElementById("qa-answer-text").textContent    = data.question_answer;
     const questionSources = data.question_citations || [];
     document.getElementById("qa-source").textContent = questionSources.length
-      ? "問題補充依據：" + questionSources.map(c => c.source + (c.topic ? `・${c.topic}` : "")).join("；")
+      ? "資料依據：" + [...new Set(questionSources.map(c => c.source))].join("；")
       : "";
   } else {
     qaCard.style.display = "none";
@@ -778,20 +755,12 @@ function renderResult(data, fullName, email) {
         ${data.question ? `<p style="color:#666;font-style:italic;margin:0 0 10px;">「${data.question}」</p>` : ""}
         <p style="line-height:1.8;margin:0;">${nl(data.question_answer)}</p>
       </div>` : "";
-    const sourceLabels = {
-      overall:"整體運勢", wealth:"財運", career:"事業",
-      love:"感情", health:"健康", remedy:"化解建議"
-    };
-    const sourceBlock = Object.entries(data.rag_citations || {}).map(([key,c]) => {
-      if (!c) return "";
-      let pages = "";
-      if (c.page_start !== null && c.page_start !== undefined) {
-        pages = `，第${c.page_start}` + (c.page_end && c.page_end !== c.page_start ? `–${c.page_end}` : "") + "頁";
-      }
-      return `<li style="margin:4px 0;">${sourceLabels[key]||key}：${c.source}${pages} · 屬${c.zodiac}</li>`;
-    }).join("") + (data.question_citations || []).map(c =>
-      `<li style="margin:4px 0;">問題補充：${c.source}${c.topic ? ` · ${c.topic}` : ""}</li>`
-    ).join("");
+    const allCitations = [
+      ...Object.values(data.rag_citations || {}),
+      ...(data.question_citations || []),
+    ].filter(Boolean);
+    const sourceBlock = [...new Set(allCitations.map(c => c.source))]
+      .map(source => `<li style="margin:4px 0;">${source}</li>`).join("");
 
     const html = `<div style="font-family:'PingFang TC','Microsoft JhengHei',sans-serif;max-width:620px;margin:0 auto;background:#fff;">
       <div style="background:linear-gradient(135deg,#7a0a1b,#990f23);padding:32px;text-align:center;">

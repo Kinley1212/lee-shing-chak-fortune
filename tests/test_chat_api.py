@@ -98,6 +98,16 @@ class ChatAPITests(unittest.TestCase):
         self.assertIn('href="/"', chat_html)
         self.assertNotIn('id="menu"', chat_html)
         self.assertNotIn('/menu/', chat_html)
+        self.assertNotIn("已核對 6/6", report_html)
+        self.assertIn("請先輸入生肖或完整出生日期", chat_html)
+
+    def test_chat_can_infer_zodiac_from_birth_date_and_recent_history(self):
+        current = main.enrich_chat_birth_date("1990年5月20日出生，今年財運如何？", [])
+        follow_up = main.enrich_chat_birth_date("那事業呢？", [
+            {"role": "user", "content": "我的出生日期是1990-05-20"},
+        ])
+        self.assertIn("生肖屬馬", current)
+        self.assertIn("生肖屬馬", follow_up)
 
     def test_report_sources_cover_all_six_sections(self):
         sections, context, citations, missing = main.retrieve_report_sources("龍")

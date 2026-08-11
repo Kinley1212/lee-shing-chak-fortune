@@ -302,6 +302,35 @@ def clean_chat_reply(text: str) -> str:
     return cleaned.strip()
 
 
+def enrich_chat_birth_date(user_msg: str, history: list[dict]) -> str:
+    """Append a zodiac inferred from a full birth date in the current chat context."""
+    if rag.query_metadata(user_msg)["zodiacs"]:
+        return user_msg
+
+    user_texts = [user_msg]
+    user_texts.extend(
+        str(turn.get("content", ""))
+        for turn in reversed(history[-10:])
+        if turn.get("role") == "user"
+    )
+    patterns = (
+        r"(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)",
+        r"(?<!\d)(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?",
+    )
+    for text in user_texts:
+        for pattern in patterns:
+            match = re.search(pattern, text)
+            if not match:
+                continue
+            try:
+                year, month, day = map(int, match.groups())
+                zodiac = calculate_bazi(year, month, day)["shengxiao"]
+            except (TypeError, ValueError, KeyError):
+                continue
+            return f"{user_msg} 生肖屬{zodiac}"
+    return user_msg
+
+
 def _parse_fortune_sections(text: str) -> dict[str, str]:
     """
     從 Gemini 回覆中提取各段。
@@ -368,7 +397,8 @@ def chat():
         return jsonify({"error": "message 不能為空"}), 400
 
     retrieval_t0 = time.time()
-    retrieval_query = rag.enrich_query(user_msg, history)
+    profile_query = enrich_chat_birth_date(user_msg, history)
+    retrieval_query = rag.enrich_query(profile_query, history)
     if rag.needs_zodiac_clarification(retrieval_query):
         retrieval_elapsed = round(time.time() - retrieval_t0, 3)
         log_retrieval(retrieval_query, [], "needs_clarification", retrieval_elapsed)

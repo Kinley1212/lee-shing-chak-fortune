@@ -67,11 +67,11 @@ body{background:radial-gradient(ellipse 48% 60% at 0% 40%,rgba(153,15,35,.06),tr
     <a class="report-link" href="/">返回運勢報告</a>
   </header>
   <section id="chat" aria-live="polite">
-    <div class="scope-note">可詢問2026生肖運勢、財運、事業、感情、健康、風水、五行、太歲及北帝靈籤</div>
+    <div class="scope-note">開始前請先輸入生肖或完整出生日期，例如：屬牛，或1990年5月20日</div>
   </section>
   <footer id="composer">
     <div class="input-row">
-      <textarea id="txt" rows="1" placeholder="輸入問題，例如：屬馬今年事業運如何？" aria-label="輸入問題"></textarea>
+      <textarea id="txt" rows="1" placeholder="例如：1990年5月20日出生，想問今年事業" aria-label="輸入問題"></textarea>
       <button id="sbtn" type="button" aria-label="發送訊息">➤</button>
     </div>
     <div class="composer-note">回答依據現有知識庫，玄學內容僅供參考</div>
@@ -93,12 +93,9 @@ function addBubble(text,isUser,citations=[]){
   const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=plainText(text);col.appendChild(bubble);
   if(!isUser&&citations.length){
     const box=document.createElement("div");box.className="citations";
-    const title=document.createElement("div");title.className="citations-title";title.textContent="原書依據";box.appendChild(title);
-    citations.forEach(item=>{
-      const line=document.createElement("div");line.className="citation-item";const labels=[];
-      if(item.zodiac)labels.push("屬"+item.zodiac);if(item.topic)labels.push(item.topic);if(item.hexagram)labels.push(item.hexagram+"卦");
-      let pages="";if(item.page_start!==null&&item.page_start!==undefined){pages="，第"+item.page_start;if(item.page_end&&item.page_end!==item.page_start)pages+="–"+item.page_end;pages+="頁"}
-      line.textContent=(item.source||"知識庫")+pages+(labels.length?" · "+labels.join("・"):"");box.appendChild(line)
+    const title=document.createElement("div");title.className="citations-title";title.textContent="資料依據";box.appendChild(title);
+    [...new Set(citations.map(item=>item.source||"知識庫"))].forEach(source=>{
+      const line=document.createElement("div");line.className="citation-item";line.textContent=source;box.appendChild(line)
     });col.appendChild(box)
   }
   const ts=document.createElement("div");ts.className="timestamp";ts.textContent=now();col.appendChild(ts);
@@ -127,7 +124,7 @@ async function sendMsg(){
 txtEl.addEventListener("input",resizeInput);
 txtEl.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();sendMsg()}});
 sbtnEl.addEventListener("click",sendMsg);
-addBubble("您好，我是李丞責博士的AI玄學問答助手。你可以告訴我生肖及想了解的主題，我會根據現有書本資料回答，並列出實際依據。",false);
+addBubble("您好，我是李丞責博士的AI玄學問答助手。開始前，請先告訴我你的生肖或完整出生日期，再說明想了解的主題；我會根據現有書本資料回答。",false);
 </script>
 </body>
 </html>
