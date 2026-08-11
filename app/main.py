@@ -122,6 +122,68 @@ def log_retrieval(query: str, results: list[dict], status: str, elapsed: float) 
     }
     print("[RAG_METRIC] " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
+
+REPORT_TOPIC_MAP = [
+    ("整體運勢", "overall"),
+    ("財運", "wealth"),
+    ("事業", "career"),
+    ("感情", "love"),
+    ("健康", "health"),
+    ("化解建議", "remedy"),
+]
+
+
+def retrieve_report_sources(shengxiao: str) -> tuple[dict, list[str], dict, list[str]]:
+    """Retrieve and validate all six deterministic source sections for a report."""
+    sections = {}
+    context_parts = []
+    citations = {}
+    missing = []
+
+    for topic_zh, topic_key in REPORT_TOPIC_MAP:
+        query = f"屬{shengxiao} {topic_zh}"
+        retrieval_t0 = time.time()
+        results = rag.search(query, top_k=1)
+        retrieval_elapsed = round(time.time() - retrieval_t0, 3)
+        exact = next(
+            (
+                chunk for chunk in results
+                if chunk.get("zodiac") == shengxiao and chunk.get("topic") == topic_zh
+            ),
+            None,
+        )
+        log_retrieval(query, [exact] if exact else [], "report_source" if exact else "missing_report_source", retrieval_elapsed)
+        if not exact:
+            missing.append(topic_zh)
+            sections[topic_key] = ""
+            continue
+
+        sections[topic_key] = exact["text"]
+        context_parts.append(f"【{topic_zh}｜屬{shengxiao}】\n{exact['text']}")
+        citation = rag.citations([exact])
+        citations[topic_key] = citation[0] if citation else None
+
+    return sections, context_parts, citations, missing
+
+
+def dedupe_display_citations(citations: list[dict]) -> list[dict]:
+    """Collapse chunk-level citations that render as the same human-readable source."""
+    unique = []
+    seen = set()
+    for citation in citations:
+        key = (
+            citation.get("source"),
+            citation.get("page_start"),
+            citation.get("page_end"),
+            citation.get("zodiac"),
+            citation.get("topic"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(citation)
+    return unique
+
 # ── 網站密碼保護 ─────────────────────────────────────────
 SITE_PASSWORD = os.getenv("SITE_PASSWORD", "88888888")
 
@@ -500,41 +562,24 @@ def analyze():
 
     # ── 2. RAG 搜尋：六主題各取一塊原書內容（直接回傳，不經 Gemini 改寫）──
     shengxiao = bazi['shengxiao']
-    topic_map = [
-        ("整體運勢", "overall"),
-        ("財運",     "wealth"),
-        ("事業",     "career"),
-        ("感情",     "love"),
-        ("健康",     "health"),
-        ("化解建議", "remedy"),
-    ]
-    rag_sections: dict = {}
-    context_parts: list = []
-    seen_ids: set = set()
+    rag_sections, context_parts, rag_citations, missing_topics = retrieve_report_sources(shengxiao)
+    if missing_topics:
+        return jsonify({
+            "error": "知識庫缺少報告所需的原書資料：" + "、".join(missing_topics) + "。為避免生成無依據內容，報告已停止。"
+        }), 503
 
-    for topic_zh, topic_key in topic_map:
-        # Exact zodiac + topic metadata is deterministic; top_k=1 also avoids an
-        # unnecessary query-embedding API call for each of the six report sections.
-        results = rag.search(f"屬{shengxiao} {topic_zh}", top_k=1)
-        chunk_text = ""
-        for chunk in results:
-            cid = chunk.get("id", id(chunk))
-            if cid in seen_ids:
-                continue
-            if chunk.get("zodiac") == shengxiao and chunk.get("topic") == topic_zh:
-                seen_ids.add(cid)
-                chunk_text = chunk["text"]
-                context_parts.append(f"【{topic_zh}｜屬{shengxiao}】\n{chunk_text}")
-                break
-        if not chunk_text:
-            for chunk in results:
-                cid = chunk.get("id", id(chunk))
-                if cid not in seen_ids and chunk.get("zodiac") == shengxiao:
-                    seen_ids.add(cid)
-                    chunk_text = chunk["text"]
-                    context_parts.append(f"【{topic_zh}｜屬{shengxiao}】\n{chunk_text}")
-                    break
-        rag_sections[topic_key] = chunk_text
+    question_citations = []
+    question_supported = False
+    if question:
+        question_query = rag.enrich_query(f"屬{shengxiao} {question}")
+        if rag.query_metadata(question_query)["topics"]:
+            question_results = rag.search(question_query, top_k=3)
+            question_supported = bool(question_results)
+            existing_ids = {citation.get("id") for citation in rag_citations.values() if citation}
+            extra_results = [chunk for chunk in question_results if chunk.get("id") not in existing_ids]
+            if extra_results:
+                context_parts.append("【用戶問題補充參考】\n" + "\n\n".join(chunk["text"] for chunk in extra_results))
+                question_citations = dedupe_display_citations(rag.citations(extra_results))
 
     context = "\n\n".join(context_parts)
 
@@ -551,6 +596,17 @@ def analyze():
 
     hour_pillar_str = f" {bazi['hour_pillar']}" if bazi.get("hour_pillar") else ""
     bazi_str = f"{bazi['year_pillar']} {bazi['month_pillar']} {bazi['day_pillar']}{hour_pillar_str}"
+
+    if question and question_supported:
+        question_section = f"""【問題解答】
+針對用戶問題「{question}」，結合以上所有分析，給出深入詳盡的回答。300-400字，分2-3個要點展開。
+嚴格禁止在此段提及任何星曜名稱，包括但不限於：祿勳、擎天、病符、亡神、的煞、大耗、天解、解神、豹尾、天狗、吊客、月煞、浮沉、血刃、天廚、唐符、歲破等，即使加任何括號或標點均不可。只說「收入有望增加」「有機會晉升」「需注意健康」等實際影響。
+末尾加：「（本內容以李丞責著作及八字五行原理為依據，玄學僅供參考。如需深入個人命盤分析，歡迎預約李丞責博士親身批算。）」"""
+    elif question:
+        question_section = f"""【問題解答】
+用戶問題「{question}」不屬於目前知識庫可驗證的運勢、財運、事業、感情、健康、風水、五行、紫微斗數、太歲或靈籤主題。只需清楚說明原書資料不足，不能把一般模型知識說成李丞責博士著作內容；不要自行延伸回答。"""
+    else:
+        question_section = ""
 
     # ── 4. 組合 Prompt（七段：六運勢 + 問題解答）──
     prompt = f"""你是李丞責博士本人，現在為用戶提供2026丙午年個人運勢分析。
@@ -598,10 +654,7 @@ def analyze():
 【化解建議】
 以書本的化解方法為主，結合五行補救，提供具體開運建議。150-200字。
 
-{f"""【問題解答】
-針對用戶問題「{question}」，結合以上所有分析，給出深入詳盡的回答。300-400字，分2-3個要點展開。
-嚴格禁止在此段提及任何星曜名稱，包括但不限於：祿勳、擎天、病符、亡神、的煞、大耗、天解、解神、豹尾、天狗、吊客、月煞、浮沉、血刃、天廚、唐符、歲破等，即使加任何括號或標點均不可。只說「收入有望增加」「有機會晉升」「需注意健康」等實際影響。
-末尾加：「（本內容以李丞責著作及八字五行原理為依據，玄學僅供參考。如需深入個人命盤分析，歡迎預約李丞責博士親身批算。）」""" if question else ""}"""
+{question_section}"""
 
     # ── 5. 呼叫 Gemini ──
     t0 = time.time()
@@ -643,6 +696,9 @@ def analyze():
         "wuxing":          bazi["wuxing"],
         "wuxing_summary":  wuxing_summary,
         "rag_sections":    rag_sections,
+        "rag_citations":   rag_citations,
+        "question_citations": question_citations,
+        "question_grounded": question_supported,
         "gemini_sections": gemini_sections,
         "question":        question,
         "question_answer": question_answer,

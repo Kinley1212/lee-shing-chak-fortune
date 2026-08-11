@@ -24,7 +24,7 @@ ZODIACS = ["鼠", "牛", "虎", "兔", "龍", "蛇", "馬", "羊", "猴", "雞",
 
 TOPIC_ALIASES: dict[str, list[str]] = {
     "整體運勢": ["整體運勢", "總運", "全年運勢", "今年運程", "流年運勢", "個人流年"],
-    "財運": ["財運", "金錢", "收入", "投資", "求財", "賺錢", "搵錢", "搵多啲錢", "理財"],
+    "財運": ["財運", "金錢", "收入", "投資", "求財", "發財", "賺錢", "搵錢", "搵多啲錢", "理財"],
     "感情": ["感情", "愛情", "桃花", "姻緣", "婚姻", "伴侶", "戀愛", "拍拖", "對象", "兩個人", "相處", "爭執"],
     "事業": ["事業", "工作", "職場", "職涯", "跑道", "前途", "出路", "轉工", "跳槽", "升職", "創業"],
     "健康": ["健康", "身體", "不舒服", "疾病", "睡眠", "精神狀態"],
@@ -421,11 +421,21 @@ class RAGEngine:
             if exact_results:
                 return exact_results[:top_k]
 
+            # Some topics (for example feng shui or five elements) are general
+            # knowledge rather than zodiac-specific. Prefer those exact-topic
+            # passages over unrelated passages that merely share the zodiac.
+            generic_topic_results = self._rank(
+                [c for c in self.chunks if not c.get("zodiac") and c.get("topic") in topics],
+                query, collection="book", allow_zero_match=True,
+            )
+            if generic_topic_results:
+                return generic_topic_results[:top_k]
+
         # 優先級2：只匹配生肖
         if zodiacs and len(results) < top_k:
             add(self._rank(
                 [c for c in self.chunks if c.get("zodiac") in zodiacs],
-                query, collection="book", allow_zero_match=True,
+                query, collection="book", allow_zero_match=bool(topics),
             ))
 
         # 優先級3：只匹配主題

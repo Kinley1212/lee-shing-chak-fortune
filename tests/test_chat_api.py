@@ -65,6 +65,25 @@ class ChatAPITests(unittest.TestCase):
         self.assertEqual(payload["citations"][0]["source"], "測試全書")
         self.assertEqual(payload["citations"][0]["page_start"], 10)
 
+    def test_report_sources_cover_all_six_sections(self):
+        sections, context, citations, missing = main.retrieve_report_sources("龍")
+        self.assertEqual(missing, [])
+        self.assertEqual(set(sections), {"overall", "wealth", "career", "love", "health", "remedy"})
+        self.assertEqual(len(context), 6)
+        self.assertEqual(len(citations), 6)
+        self.assertTrue(all(citation["zodiac"] == "龍" for citation in citations.values()))
+
+    def test_report_question_citations_collapse_duplicate_source_labels(self):
+        citations = [
+            {"id": "feng-shui-1", "source": "李丞責2026全書", "topic": "風水", "zodiac": None,
+             "page_start": None, "page_end": None},
+            {"id": "feng-shui-2", "source": "李丞責2026全書", "topic": "風水", "zodiac": None,
+             "page_start": None, "page_end": None},
+        ]
+        result = main.dedupe_display_citations(citations)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["id"], "feng-shui-1")
+
 
 if __name__ == "__main__":
     unittest.main()
