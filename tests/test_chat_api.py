@@ -100,6 +100,8 @@ class ChatAPITests(unittest.TestCase):
         self.assertNotIn('/menu/', chat_html)
         self.assertNotIn("已核對 6/6", report_html)
         self.assertIn("請先輸入生肖或完整出生日期", chat_html)
+        self.assertIn('id="memory-card"', chat_html)
+        self.assertIn('id="memory-clear"', chat_html)
 
     def test_chat_can_infer_zodiac_from_birth_date_and_recent_history(self):
         current = main.enrich_chat_birth_date("1990年5月20日出生，今年財運如何？", [])
@@ -108,6 +110,62 @@ class ChatAPITests(unittest.TestCase):
         ])
         self.assertIn("生肖屬馬", current)
         self.assertIn("生肖屬馬", follow_up)
+
+    def test_structured_profile_persists_across_requests_and_can_be_cleared(self):
+        result = {
+            "id": "horse-wealth", "text": "財運原文", "source": "測試全書",
+            "zodiac": "馬", "topic": "財運", "_retrieval_method": "metadata",
+            "_retrieval_score": 1.0,
+        }
+        with (
+            patch.object(main.rag, "search", return_value=[result]) as search,
+            patch.object(main, "call_gemini", return_value="完整回答"),
+        ):
+            first = self.client.post("/chat", json={
+                "message": "我是男性，1990年5月20日出生，今年財運如何？", "history": [],
+            })
+            second = self.client.post("/chat", json={"message": "那事業呢？", "history": []})
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.get_json()["profile"]["birth_date"], "1990-05-20")
+        self.assertEqual(first.get_json()["profile"]["zodiac"], "馬")
+        self.assertEqual(first.get_json()["profile"]["gender"], "男")
+        self.assertTrue(second.get_json()["memory_used"])
+        self.assertIn("屬馬", search.call_args_list[1].args[0])
+
+        stored = self.client.get("/chat/profile").get_json()
+        self.assertTrue(stored["has_memory"])
+        self.assertEqual(stored["profile"]["zodiac"], "馬")
+        cleared = self.client.delete("/chat/profile").get_json()
+        self.assertFalse(cleared["has_memory"])
+        self.assertFalse(self.client.get("/chat/profile").get_json()["has_memory"])
+
+    def test_conditional_reranker_skips_exact_match_and_runs_for_close_semantic_results(self):
+        exact = [
+            {"id": "exact", "zodiac": "馬", "topic": "財運", "_retrieval_method": "metadata", "_retrieval_score": 1.0},
+            {"id": "other", "zodiac": "馬", "topic": "事業", "_retrieval_method": "hybrid", "_retrieval_score": 0.98},
+        ]
+        ambiguous = [
+            {"id": "a", "zodiac": None, "topic": "風水", "_retrieval_method": "hybrid", "_retrieval_score": 0.72},
+            {"id": "b", "zodiac": None, "topic": "五行", "_retrieval_method": "semantic", "_retrieval_score": 0.69},
+        ]
+        with patch.object(main, "GEMINI_API_KEY", "test-key"):
+            self.assertFalse(main.should_rerank("屬馬財運", exact))
+            self.assertTrue(main.should_rerank("屋企氣場應該點改善？", ambiguous))
+
+    def test_reranker_reorders_candidates_from_model_json(self):
+        candidates = [
+            {"id": "a", "text": "候選甲", "topic": "風水", "_retrieval_method": "hybrid", "_retrieval_score": 0.72},
+            {"id": "b", "text": "候選乙", "topic": "五行", "_retrieval_method": "semantic", "_retrieval_score": 0.69},
+        ]
+        response = SimpleNamespace(text='["c2","c1"]')
+        with (
+            patch.object(main, "should_rerank", return_value=True),
+            patch.object(main.gemini_client.models, "generate_content", return_value=response),
+        ):
+            ordered, reranked = main.conditional_rerank("屋企氣場", candidates)
+        self.assertTrue(reranked)
+        self.assertEqual([item["id"] for item in ordered], ["b", "a"])
 
     def test_report_sources_cover_all_six_sections(self):
         sections, context, citations, missing = main.retrieve_report_sources("龍")

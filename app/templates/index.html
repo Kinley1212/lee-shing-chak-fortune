@@ -26,6 +26,9 @@ body{background:radial-gradient(ellipse 48% 60% at 0% 40%,rgba(153,15,35,.06),tr
 #chat{flex:1;overflow-y:auto;padding:24px clamp(14px,4vw,34px) 18px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
 #chat::-webkit-scrollbar{width:5px}#chat::-webkit-scrollbar-thumb{background:rgba(153,15,35,.16);border-radius:99px}
 .scope-note{align-self:center;max-width:620px;text-align:center;color:var(--text3);font-size:.7rem;line-height:1.6;padding:7px 13px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.7)}
+.memory-card{align-self:center;max-width:660px;width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid rgba(184,134,11,.25);border-radius:10px;background:rgba(184,134,11,.055);color:var(--gold3);font-size:.7rem;line-height:1.45}
+.memory-card[hidden]{display:none}.memory-icon{font-size:.9rem}.memory-text{flex:1;min-width:0}
+.memory-title{font-weight:700;margin-right:5px}.memory-clear{border:0;background:transparent;color:var(--red);font:inherit;font-weight:700;cursor:pointer;white-space:nowrap;padding:4px 2px}
 .row{display:flex;gap:9px;max-width:min(82%,680px);animation:fadeUp .22s ease}
 @keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
 .row.ai{align-self:flex-start}.row.user{align-self:flex-end;flex-direction:row-reverse}
@@ -68,6 +71,11 @@ body{background:radial-gradient(ellipse 48% 60% at 0% 40%,rgba(153,15,35,.06),tr
   </header>
   <section id="chat" aria-live="polite">
     <div class="scope-note">開始前請先輸入生肖或完整出生日期，例如：屬牛，或1990年5月20日</div>
+    <div class="memory-card" id="memory-card" hidden>
+      <span class="memory-icon">✦</span>
+      <div class="memory-text"><span class="memory-title">本次會話記憶</span><span id="memory-values"></span></div>
+      <button class="memory-clear" id="memory-clear" type="button">清除記憶</button>
+    </div>
   </section>
   <footer id="composer">
     <div class="input-row">
@@ -79,6 +87,7 @@ body{background:radial-gradient(ellipse 48% 60% at 0% 40%,rgba(153,15,35,.06),tr
 </main>
 <script>
 const chatEl=document.getElementById("chat"),txtEl=document.getElementById("txt"),sbtnEl=document.getElementById("sbtn");
+const memoryCard=document.getElementById("memory-card"),memoryValues=document.getElementById("memory-values"),memoryClear=document.getElementById("memory-clear");
 let history=[];
 function now(){return new Date().toLocaleTimeString("zh-HK",{hour:"2-digit",minute:"2-digit"})}
 function scrollBottom(){chatEl.scrollTop=chatEl.scrollHeight}
@@ -109,13 +118,33 @@ function showLoading(){
 }
 function removeLoading(){document.getElementById("loading-row")?.remove()}
 function resizeInput(){txtEl.style.height="auto";txtEl.style.height=Math.min(txtEl.scrollHeight,130)+"px"}
+function renderProfile(profile={}){
+  const parts=[];
+  if(profile.birth_date)parts.push("出生日期 "+profile.birth_date);
+  if(profile.zodiac)parts.push("屬"+profile.zodiac);
+  if(profile.gender)parts.push(profile.gender);
+  if((profile.topics||[]).length)parts.push("關注 "+profile.topics.slice(-3).join("、"));
+  memoryValues.textContent=parts.join(" · ");memoryCard.hidden=!parts.length
+}
+async function loadProfile(){
+  try{const res=await fetch("/chat/profile");const data=await res.json();if(res.ok)renderProfile(data.profile)}catch(error){console.error("讀取會話記憶失敗",error)}
+}
+async function clearProfile(){
+  memoryClear.disabled=true;
+  try{
+    const res=await fetch("/chat/profile",{method:"DELETE"});const data=await res.json();
+    if(!res.ok)throw new Error(data.error||"清除失敗");
+    history=[];renderProfile(data.profile);addBubble("本次會話記憶已清除。下次提問時，請重新提供生肖或完整出生日期。",false)
+  }catch(error){addBubble("暫時無法清除會話記憶，請稍後再試。",false)}
+  finally{memoryClear.disabled=false}
+}
 async function sendMsg(){
   const text=txtEl.value.trim();if(!text||sbtnEl.disabled)return;
   const priorHistory=history.slice(-10);txtEl.value="";resizeInput();sbtnEl.disabled=true;
   addBubble(text,true);history.push({role:"user",content:text});if(history.length>20)history=history.slice(-20);showLoading();
   try{
     const res=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,history:priorHistory})});
-    const data=await res.json();removeLoading();
+    const data=await res.json();removeLoading();if(data.profile)renderProfile(data.profile);
     if(!res.ok||data.error){addBubble("暫時無法完成回答："+(data.error||"請稍後再試。"),false)}
     else{const reply=plainText(data.reply);addBubble(reply,false,data.citations||[]);history.push({role:"model",content:reply});if(history.length>20)history=history.slice(-20)}
   }catch(error){removeLoading();addBubble("網絡連線出現問題，請稍後再試。",false)}
@@ -124,7 +153,9 @@ async function sendMsg(){
 txtEl.addEventListener("input",resizeInput);
 txtEl.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();sendMsg()}});
 sbtnEl.addEventListener("click",sendMsg);
+memoryClear.addEventListener("click",clearProfile);
 addBubble("您好，我是李丞責博士的AI玄學問答助手。開始前，請先告訴我你的生肖或完整出生日期，再說明想了解的主題；我會根據現有書本資料回答。",false);
+loadProfile();
 </script>
 </body>
 </html>

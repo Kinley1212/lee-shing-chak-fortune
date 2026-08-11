@@ -10,9 +10,11 @@ import re
 import sys
 import time
 import json
+import secrets
 import socket
 import smtplib
 import ssl
+from threading import Lock
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date, timedelta
@@ -35,6 +37,8 @@ GEMINI_MODEL   = "gemini-2.5-flash"
 EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "gemini-embedding-001")
 EMBEDDING_DIMENSIONS = int(os.getenv("RAG_EMBEDDING_DIMENSIONS", "768"))
 RAG_LOG_RETRIEVAL = os.getenv("RAG_LOG_RETRIEVAL", "1") == "1"
+RAG_RERANK_ENABLED = os.getenv("RAG_RERANK_ENABLED", "1") == "1"
+RAG_RERANK_SCORE_MARGIN = float(os.getenv("RAG_RERANK_SCORE_MARGIN", "0.08"))
 gemini_client  = genai.Client(api_key=GEMINI_API_KEY)
 
 # ── Gmail SMTP ────────────────────────────────────────────
@@ -66,6 +70,12 @@ app.json.ensure_ascii = False
 app.secret_key = os.getenv("SECRET_KEY", "lczai-2026-site-gate-secret")
 app.permanent_session_lifetime = timedelta(days=30)
 CORS(app)
+
+# Chat profile data stays server-side. The signed session cookie only stores a
+# random lookup ID, not the user's birth date or other profile fields.
+CHAT_PROFILE_TTL_SECONDS = int(os.getenv("CHAT_PROFILE_TTL_SECONDS", "86400"))
+CHAT_PROFILES: dict[str, dict] = {}
+CHAT_PROFILES_LOCK = Lock()
 
 def embed_retrieval_query(query: str) -> list[float]:
     """Embed one search query; document vectors are precomputed offline."""
@@ -177,13 +187,168 @@ def dedupe_display_citations(citations: list[dict]) -> list[dict]:
         unique.append(citation)
     return unique
 
+
+def _empty_chat_profile() -> dict:
+    return {"birth_date": None, "zodiac": None, "gender": None, "topics": [], "updated_at": time.time()}
+
+
+def _chat_memory_id(create: bool = False) -> str | None:
+    memory_id = session.get("chat_memory_id")
+    if not memory_id and create:
+        memory_id = secrets.token_urlsafe(18)
+        session["chat_memory_id"] = memory_id
+    return memory_id
+
+
+def get_chat_profile(create: bool = False) -> dict:
+    """Return a copy of the current session's server-side structured profile."""
+    memory_id = _chat_memory_id(create=create)
+    if not memory_id:
+        return _empty_chat_profile()
+    now = time.time()
+    with CHAT_PROFILES_LOCK:
+        profile = CHAT_PROFILES.get(memory_id)
+        if profile and now - profile.get("updated_at", 0) > CHAT_PROFILE_TTL_SECONDS:
+            CHAT_PROFILES.pop(memory_id, None)
+            profile = None
+        if profile is None:
+            profile = _empty_chat_profile()
+            if create:
+                CHAT_PROFILES[memory_id] = profile
+        return dict(profile)
+
+
+def save_chat_profile(profile: dict) -> dict:
+    memory_id = _chat_memory_id(create=True)
+    stored = {
+        "birth_date": profile.get("birth_date"),
+        "zodiac": profile.get("zodiac"),
+        "gender": profile.get("gender"),
+        "topics": list(dict.fromkeys(profile.get("topics") or []))[-5:],
+        "updated_at": time.time(),
+    }
+    with CHAT_PROFILES_LOCK:
+        expired_ids = [
+            key for key, value in CHAT_PROFILES.items()
+            if stored["updated_at"] - value.get("updated_at", 0) > CHAT_PROFILE_TTL_SECONDS
+        ]
+        for expired_id in expired_ids:
+            CHAT_PROFILES.pop(expired_id, None)
+        CHAT_PROFILES[memory_id] = stored
+    return dict(stored)
+
+
+def clear_chat_profile() -> None:
+    memory_id = session.pop("chat_memory_id", None)
+    if memory_id:
+        with CHAT_PROFILES_LOCK:
+            CHAT_PROFILES.pop(memory_id, None)
+
+
+def public_chat_profile(profile: dict) -> dict:
+    return {
+        "birth_date": profile.get("birth_date"),
+        "zodiac": profile.get("zodiac"),
+        "gender": profile.get("gender"),
+        "topics": profile.get("topics") or [],
+    }
+
+
+def _extract_birth_date(text: str) -> date | None:
+    patterns = (
+        r"(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)",
+        r"(?<!\d)(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        try:
+            return date(*map(int, match.groups()))
+        except ValueError:
+            continue
+    return None
+
+
+def _extract_gender(text: str) -> str | None:
+    if re.search(r"(?:我是|本人是?|性別[:：]?\s*)(?:男性|男士|男)(?:\b|人|生)?", text):
+        return "男"
+    if re.search(r"(?:我是|本人是?|性別[:：]?\s*)(?:女性|女士|女)(?:\b|人|生)?", text):
+        return "女"
+    return None
+
+
+def update_chat_profile(user_msg: str, history: list[dict]) -> tuple[dict, bool]:
+    """Extract stable profile fields and report whether stored memory enriched this turn."""
+    profile = get_chat_profile(create=True)
+    original = public_chat_profile(profile)
+    metadata = rag.query_metadata(user_msg)
+    birth = _extract_birth_date(user_msg)
+    explicit_zodiac = metadata["zodiacs"][0] if metadata["zodiacs"] else None
+
+    if birth:
+        profile["birth_date"] = birth.isoformat()
+        profile["zodiac"] = calculate_bazi(birth.year, birth.month, birth.day)["shengxiao"]
+    elif explicit_zodiac:
+        if profile.get("zodiac") and profile["zodiac"] != explicit_zodiac:
+            profile["birth_date"] = None
+        profile["zodiac"] = explicit_zodiac
+    elif not profile.get("zodiac"):
+        # Smoothly migrate context created before structured memory was enabled.
+        for turn in reversed(history[-10:]):
+            if turn.get("role") != "user":
+                continue
+            previous = str(turn.get("content", ""))
+            previous_birth = _extract_birth_date(previous)
+            previous_zodiacs = rag.query_metadata(previous)["zodiacs"]
+            if previous_birth:
+                profile["birth_date"] = previous_birth.isoformat()
+                profile["zodiac"] = calculate_bazi(
+                    previous_birth.year, previous_birth.month, previous_birth.day
+                )["shengxiao"]
+                break
+            if previous_zodiacs:
+                profile["zodiac"] = previous_zodiacs[0]
+                break
+
+    gender = _extract_gender(user_msg)
+    if gender:
+        profile["gender"] = gender
+    if metadata["topics"]:
+        profile["topics"] = [*(profile.get("topics") or []), *metadata["topics"]]
+
+    memory_used = bool(
+        original.get("zodiac")
+        and not birth
+        and not explicit_zodiac
+    )
+    return save_chat_profile(profile), memory_used
+
+
+def apply_chat_profile(user_msg: str, profile: dict) -> str:
+    enriched = user_msg
+    if profile.get("zodiac") and not rag.query_metadata(enriched)["zodiacs"]:
+        enriched = f"{enriched} 生肖屬{profile['zodiac']}"
+    return enriched
+
+
+def format_chat_profile_context(profile: dict) -> str:
+    fields = []
+    if profile.get("birth_date"):
+        fields.append(f"出生日期：{profile['birth_date']}")
+    if profile.get("zodiac"):
+        fields.append(f"生肖：屬{profile['zodiac']}")
+    if profile.get("gender"):
+        fields.append(f"性別：{profile['gender']}")
+    return "【本次會話資料】\n" + "\n".join(fields) if fields else ""
+
 # ── 網站密碼保護 ─────────────────────────────────────────
 SITE_PASSWORD = os.getenv("SITE_PASSWORD", "88888888")
 
 # 不需要登入即可訪問的路由（登入頁本身、靜態檔案、健康檢查）
 PUBLIC_ENDPOINTS = {"login", "static", "health"}
 # 前端 AJAX 呼叫的 API：未登入時回傳 401 JSON，而非導向登入頁
-JSON_ENDPOINTS = {"chat", "analyze", "test_email"}
+JSON_ENDPOINTS = {"chat", "chat_profile", "analyze", "test_email"}
 
 
 @app.before_request
@@ -211,6 +376,7 @@ def login():
 
 @app.route("/logout")
 def logout():
+    clear_chat_profile()
     session.pop("authenticated", None)
     return redirect(url_for("login"))
 
@@ -313,22 +479,81 @@ def enrich_chat_birth_date(user_msg: str, history: list[dict]) -> str:
         for turn in reversed(history[-10:])
         if turn.get("role") == "user"
     )
-    patterns = (
-        r"(?<!\d)(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?!\d)",
-        r"(?<!\d)(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日?",
-    )
     for text in user_texts:
-        for pattern in patterns:
-            match = re.search(pattern, text)
-            if not match:
-                continue
-            try:
-                year, month, day = map(int, match.groups())
-                zodiac = calculate_bazi(year, month, day)["shengxiao"]
-            except (TypeError, ValueError, KeyError):
-                continue
-            return f"{user_msg} 生肖屬{zodiac}"
+        birth = _extract_birth_date(text)
+        if not birth:
+            continue
+        zodiac = calculate_bazi(birth.year, birth.month, birth.day)["shengxiao"]
+        return f"{user_msg} 生肖屬{zodiac}"
     return user_msg
+
+
+def should_rerank(query: str, results: list[dict]) -> bool:
+    """Only spend a model call when retrieval produces genuinely ambiguous candidates."""
+    if not RAG_RERANK_ENABLED or not GEMINI_API_KEY or len(results) < 2:
+        return False
+
+    metadata = rag.query_metadata(query)
+    top = results[0]
+    if (
+        len(metadata["zodiacs"]) == 1
+        and len(metadata["topics"]) == 1
+        and top.get("zodiac") == metadata["zodiacs"][0]
+        and top.get("topic") == metadata["topics"][0]
+    ):
+        return False
+
+    top_score = float(top.get("_retrieval_score") or 0)
+    second_score = float(results[1].get("_retrieval_score") or 0)
+    close_scores = top_score - second_score <= RAG_RERANK_SCORE_MARGIN
+    semantic_candidates = any(
+        result.get("_retrieval_method") in {"semantic", "hybrid"}
+        for result in results[:4]
+    )
+    multi_intent = len(metadata["topics"]) > 1
+    return multi_intent or (semantic_candidates and close_scores)
+
+
+def conditional_rerank(query: str, results: list[dict], top_k: int = 3) -> tuple[list[dict], bool]:
+    """Rerank ambiguous candidates with Gemini; safely fall back on any failure."""
+    if not should_rerank(query, results):
+        return results[:top_k], False
+
+    candidates = [
+        {
+            "key": f"c{index}",
+            "zodiac": result.get("zodiac"),
+            "topic": result.get("topic"),
+            "text": result.get("text", "")[:1200],
+        }
+        for index, result in enumerate(results[:8], 1)
+    ]
+    prompt = f"""你是檢索排序器。根據用戶問題，將候選資料按「能否直接支持回答」由高至低排序。
+只輸出 JSON 字串陣列，例如 ["c2","c1","c3"]，不要解釋，不要加入 Markdown。
+用戶問題：{query}
+候選資料：{json.dumps(candidates, ensure_ascii=False)}"""
+    try:
+        response = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[types.Content(role="user", parts=[types.Part(text=prompt)])],
+            config=types.GenerateContentConfig(
+                temperature=0,
+                max_output_tokens=256,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        match = re.search(r"\[[\s\S]*?\]", response.text or "")
+        ordered_keys = json.loads(match.group(0)) if match else []
+        if not isinstance(ordered_keys, list):
+            raise ValueError("reranker returned a non-list payload")
+        by_key = {candidate["key"]: result for candidate, result in zip(candidates, results[:8])}
+        ordered = [by_key[key] for key in ordered_keys if key in by_key]
+        ordered_ids = {id(result) for result in ordered}
+        ordered.extend(result for result in results[:8] if id(result) not in ordered_ids)
+        return ordered[:top_k], True
+    except Exception as exc:
+        print(f"[RAG] Reranker 失敗，保留原排序：{exc}")
+        return results[:top_k], False
 
 
 def _parse_fortune_sections(text: str) -> dict[str, str]:
@@ -387,6 +612,16 @@ def health():
     })
 
 
+@app.route("/chat/profile", methods=["GET", "DELETE"])
+def chat_profile():
+    if request.method == "DELETE":
+        clear_chat_profile()
+        return jsonify({"profile": public_chat_profile(_empty_chat_profile()), "has_memory": False})
+    profile = get_chat_profile(create=False)
+    public_profile = public_chat_profile(profile)
+    return jsonify({"profile": public_profile, "has_memory": any(public_profile.values())})
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data     = request.get_json(silent=True) or {}
@@ -397,21 +632,26 @@ def chat():
         return jsonify({"error": "message 不能為空"}), 400
 
     retrieval_t0 = time.time()
-    profile_query = enrich_chat_birth_date(user_msg, history)
+    profile, memory_used = update_chat_profile(user_msg, history)
+    profile_query = apply_chat_profile(user_msg, profile)
     retrieval_query = rag.enrich_query(profile_query, history)
     if rag.needs_zodiac_clarification(retrieval_query):
         retrieval_elapsed = round(time.time() - retrieval_t0, 3)
         log_retrieval(retrieval_query, [], "needs_clarification", retrieval_elapsed)
         return jsonify({
-            "reply": "要提供個人化的2026年運勢分析，我需要先知道你的生肖或出生年份。請告訴我其中一項，我再根據書本資料回答。",
+            "reply": "要提供個人化的2026年運勢分析，我需要先知道你的生肖或完整出生日期。請告訴我其中一項，我再根據書本資料回答。",
             "elapsed": 0,
             "citations": [],
             "needs_clarification": True,
             "grounded": False,
             "retrieval_elapsed": retrieval_elapsed,
+            "profile": public_chat_profile(profile),
+            "memory_used": memory_used,
+            "reranked": False,
         })
 
-    results = rag.search(retrieval_query)
+    candidates = rag.search(retrieval_query, top_k=8)
+    results, reranked = conditional_rerank(retrieval_query, candidates, top_k=3)
     retrieval_elapsed = round(time.time() - retrieval_t0, 3)
     citations = dedupe_display_citations(rag.citations(results))
     if not results:
@@ -422,10 +662,14 @@ def chat():
             "citations": [],
             "grounded": False,
             "retrieval_elapsed": retrieval_elapsed,
+            "profile": public_chat_profile(profile),
+            "memory_used": memory_used,
+            "reranked": reranked,
         })
 
-    log_retrieval(retrieval_query, results, "grounded", retrieval_elapsed)
-    context = rag.format_context(results)
+    log_retrieval(retrieval_query, results, "grounded_reranked" if reranked else "grounded", retrieval_elapsed)
+    profile_context = format_chat_profile_context(profile)
+    context = "\n\n".join(part for part in [profile_context, rag.format_context(results)] if part)
 
     t0 = time.time()
     try:
@@ -440,6 +684,9 @@ def chat():
         "citations": citations,
         "grounded": True,
         "retrieval_elapsed": retrieval_elapsed,
+        "profile": public_chat_profile(profile),
+        "memory_used": memory_used,
+        "reranked": reranked,
     })
 
 
