@@ -113,6 +113,7 @@ lee-shing-chak-fortune/
 ## Screenshots
 
 ![Fortune query form](./docs/screenshot-form.png)
+![Conversational AI interface](./docs/screenshot-chat.png)
 ![Sample fortune report](./docs/screenshot-report-1.png)
 ![Fortune report detail](./docs/screenshot-report-2.png)
 
