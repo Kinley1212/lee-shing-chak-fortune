@@ -23,16 +23,25 @@ EMBEDDINGS_PATH    = os.path.join(BASE, "data", "knowledge", "embedding_index.js
 ZODIACS = ["鼠", "牛", "虎", "兔", "龍", "蛇", "馬", "羊", "猴", "雞", "狗", "豬"]
 
 TOPIC_ALIASES: dict[str, list[str]] = {
-    "整體運勢": ["整體運勢", "總運", "全年運勢", "今年運程"],
-    "財運": ["財運", "金錢", "收入", "投資", "求財", "賺錢"],
-    "感情": ["感情", "愛情", "桃花", "姻緣", "婚姻", "伴侶"],
-    "事業": ["事業", "工作", "職場", "轉工", "跳槽", "升職", "創業"],
+    "整體運勢": ["整體運勢", "總運", "全年運勢", "今年運程", "流年運勢", "個人流年"],
+    "財運": ["財運", "金錢", "收入", "投資", "求財", "賺錢", "搵錢", "搵多啲錢", "理財"],
+    "感情": ["感情", "愛情", "桃花", "姻緣", "婚姻", "伴侶", "戀愛", "拍拖", "對象", "兩個人", "相處", "爭執"],
+    "事業": ["事業", "工作", "職場", "職涯", "跑道", "前途", "出路", "轉工", "跳槽", "升職", "創業"],
     "健康": ["健康", "身體", "不舒服", "疾病", "睡眠", "精神狀態"],
     "風水": ["風水", "屋企", "住宅", "家居", "氣場", "方位", "擺設"],
     "預言": ["預言", "趨勢", "大環境"],
     "佈局": ["佈局", "布局", "擺陣", "開運"],
     "化解建議": ["化解建議", "化解", "改善方法", "補救方法"],
+    "每月運勢": ["每月運勢", "月份運勢", "月份", "幾月", "幾個月", "哪個月", "哪幾個月", "注意月份"],
+    "紫微斗數": ["紫微斗數", "紫微", "命宮", "星曜"],
+    "九宮飛星": ["九宮飛星", "飛星", "九星"],
+    "五行": ["五行", "金木水火土", "缺金", "缺木", "缺水", "缺火", "缺土"],
+    "天干地支": ["天干地支", "天干", "地支", "甲乙丙丁", "子丑寅卯"],
+    "太歲": ["太歲", "犯太歲", "攝太歲", "拜太歲"],
 }
+
+PERSONAL_FORTUNE_TOPICS = {"整體運勢", "財運", "感情", "事業", "健康", "化解建議", "每月運勢"}
+PERSONAL_QUERY_MARKERS = ["我", "本人", "自己", "今年", "2026", "流年"]
 
 ZODIAC_ALIASES: dict[str, list[str]] = {
     "鼠": ["鼠", "子鼠", "屬鼠"],
@@ -106,6 +115,7 @@ class RAGEngine:
         embeddings_path: str = EMBEDDINGS_PATH,
         semantic_weight: float = 0.65,
         min_semantic_score: float = 0.62,
+        unscoped_min_semantic_score: float = 0.68,
         expected_embedding_model: str | None = None,
         expected_embedding_dimensions: int | None = None,
     ):
@@ -115,6 +125,7 @@ class RAGEngine:
         self.query_embedder = query_embedder
         self.semantic_weight = min(max(semantic_weight, 0.0), 1.0)
         self.min_semantic_score = min_semantic_score
+        self.unscoped_min_semantic_score = max(unscoped_min_semantic_score, min_semantic_score)
         self.expected_embedding_model = expected_embedding_model
         self.expected_embedding_dimensions = expected_embedding_dimensions
         self.embedding_model = ""
@@ -203,6 +214,43 @@ class RAGEngine:
     def _extract_topics(self, query: str) -> list[str]:
         return [topic for topic, aliases in TOPIC_ALIASES.items() if any(alias in query for alias in aliases)]
 
+    def enrich_query(self, query: str, history: list[dict] | None = None) -> str:
+        """Reuse a zodiac mentioned earlier and append canonical metadata terms."""
+        enriched = query.strip()
+        zodiacs = self._extract_zodiacs(enriched)
+        if not zodiacs and history:
+            for turn in reversed(history[-10:]):
+                if turn.get("role") != "user":
+                    continue
+                previous = str(turn.get("content", ""))
+                found = self._extract_zodiacs(previous)
+                if found:
+                    zodiacs = found
+                    enriched = f"{enriched} 屬{found[0]}"
+                    break
+
+        topics = self._extract_topics(enriched)
+        canonical_terms = [*topics]
+        canonical_terms.extend(f"屬{zodiac}" for zodiac in zodiacs)
+        if canonical_terms:
+            enriched = f"{enriched} {' '.join(dict.fromkeys(canonical_terms))}"
+        return enriched
+
+    def needs_zodiac_clarification(self, query: str) -> bool:
+        """Return True when a personal annual-fortune answer needs missing zodiac data."""
+        if self._extract_zodiacs(query):
+            return False
+        topics = set(self._extract_topics(query))
+        return bool(topics & PERSONAL_FORTUNE_TOPICS) and any(marker in query for marker in PERSONAL_QUERY_MARKERS)
+
+    def query_metadata(self, query: str) -> dict:
+        """Return non-sensitive intent metadata for retrieval observability."""
+        return {
+            "zodiacs": self._extract_zodiacs(query),
+            "topics": self._extract_topics(query),
+            "query_length": len(query),
+        }
+
     def _keyword_score(self, chunk: dict, query: str) -> float:
         """關鍵字得分 × 塊權重（第六章週運塊 weight=0.5，其餘 weight=1.0）"""
         text = chunk.get("text", "")
@@ -252,29 +300,57 @@ class RAGEngine:
         collection: str,
         allow_zero_match: bool = False,
         use_semantic: bool = True,
+        min_semantic_score: float | None = None,
     ) -> list[dict]:
         if not pool:
             return []
 
         query_vector = self._embed_query(query) if use_semantic else None
+        semantic_floor = self.min_semantic_score if min_semantic_score is None else min_semantic_score
         lexical_scores = [self._keyword_score(chunk, query) for chunk in pool]
-        max_lexical = max(lexical_scores, default=0.0)
+        semantic_scores: list[float] = []
+
+        for position, chunk in enumerate(pool):
+            vector = self.embeddings.get(chunk_key(collection, chunk, position))
+            semantic_scores.append(
+                self._cosine_similarity(query_vector, vector) if query_vector and vector else -1.0
+            )
+
+        lexical_order = sorted(range(len(pool)), key=lambda index: lexical_scores[index], reverse=True)
+        semantic_order = sorted(range(len(pool)), key=lambda index: semantic_scores[index], reverse=True)
+        lexical_ranks = {index: rank for rank, index in enumerate(lexical_order, 1) if lexical_scores[index] > 0}
+        semantic_ranks = {
+            index: rank
+            for rank, index in enumerate(semantic_order, 1)
+            if semantic_scores[index] >= semantic_floor
+        }
+        rrf_k = 60
+        best_possible_rrf = 1 / (rrf_k + 1)
         scored: list[tuple[float, dict]] = []
 
-        for position, (chunk, lexical_raw) in enumerate(zip(pool, lexical_scores)):
-            lexical = lexical_raw / max_lexical if max_lexical > 0 else 0.0
-            vector = self.embeddings.get(chunk_key(collection, chunk, position))
-            semantic = self._cosine_similarity(query_vector, vector) if query_vector and vector else -1.0
-            has_semantic_match = semantic >= self.min_semantic_score
+        for position, chunk in enumerate(pool):
+            lexical_raw = lexical_scores[position]
+            semantic = semantic_scores[position]
+            has_semantic_match = semantic >= semantic_floor
 
-            if not allow_zero_match and lexical_raw <= 0 and not has_semantic_match:
-                continue
+            if not allow_zero_match:
+                # When semantic retrieval is available, lexical overlap alone must not
+                # admit an out-of-domain passage. Keyword-only fallback remains available
+                # when the embedding API is disabled or temporarily fails.
+                if query_vector and not has_semantic_match:
+                    continue
+                if not query_vector and lexical_raw <= 0:
+                    continue
+
+            lexical_rrf = 1 / (rrf_k + lexical_ranks[position]) if position in lexical_ranks else 0.0
+            semantic_rrf = 1 / (rrf_k + semantic_ranks[position]) if position in semantic_ranks else 0.0
 
             if semantic >= -0.5:
-                score = self.semantic_weight * max(semantic, 0.0) + (1 - self.semantic_weight) * lexical
+                weighted_rrf = (1 - self.semantic_weight) * lexical_rrf + self.semantic_weight * semantic_rrf
+                score = weighted_rrf / best_possible_rrf
                 method = "hybrid" if lexical_raw > 0 else "semantic"
             else:
-                score = lexical
+                score = lexical_rrf / best_possible_rrf
                 method = "keyword" if lexical_raw > 0 else "metadata"
 
             result = dict(chunk)
@@ -338,10 +414,12 @@ class RAGEngine:
 
         # 優先級1：生肖 + 主題雙匹配
         if zodiacs and topics:
-            add(self._rank(
+            exact_results = self._rank(
                 [c for c in self.chunks if c.get("zodiac") in zodiacs and c.get("topic") in topics],
                 query, collection="book", allow_zero_match=True, use_semantic=False,
-            ))
+            )
+            if exact_results:
+                return exact_results[:top_k]
 
         # 優先級2：只匹配生肖
         if zodiacs and len(results) < top_k:
@@ -364,12 +442,16 @@ class RAGEngine:
         # 優先級4：全文關鍵字搜尋
         if len(results) < top_k:
             fallback_pool = self.chunks if zodiacs else [c for c in self.chunks if not c.get("zodiac")]
-            add(self._rank(fallback_pool, query, collection="book"))
+            add(self._rank(
+                fallback_pool,
+                query,
+                collection="book",
+                min_semantic_score=self.unscoped_min_semantic_score if not zodiacs and not topics else None,
+            ))
 
         return results[:top_k]
 
-    def get_context(self, query: str, top_k: int = 3) -> str:
-        results = self.search(query, top_k=top_k)
+    def format_context(self, results: list[dict]) -> str:
         if not results:
             return "知識庫中沒有檢索到足夠相關的參考資料。請勿虛構書本內容，並向用戶說明資料不足。"
         parts = []
@@ -396,6 +478,35 @@ class RAGEngine:
             + "\n\n".join(parts)
             + "\n\n請根據以上資料回答用戶問題。"
         )
+
+    def get_context(self, query: str, top_k: int = 3) -> str:
+        return self.format_context(self.search(query, top_k=top_k))
+
+    @staticmethod
+    def citations(results: list[dict]) -> list[dict]:
+        """Return safe, structured citation metadata for API and UI consumers."""
+        citations = []
+        seen = set()
+        for chunk in results:
+            chunk_id = chunk.get("id")
+            source = chunk.get("source") or chunk.get("chapter", "2026全書")
+            key = (chunk_id, source, chunk.get("page_start"), chunk.get("page_end"))
+            if key in seen:
+                continue
+            seen.add(key)
+            citations.append({
+                "id": chunk_id,
+                "source": source,
+                "chapter": chunk.get("chapter"),
+                "page_start": chunk.get("page_start"),
+                "page_end": chunk.get("page_end"),
+                "zodiac": chunk.get("zodiac"),
+                "topic": chunk.get("topic"),
+                "hexagram": chunk.get("hexagram"),
+                "retrieval_method": chunk.get("_retrieval_method"),
+                "score": chunk.get("_retrieval_score"),
+            })
+        return citations
 
     @property
     def chunk_count(self) -> int:

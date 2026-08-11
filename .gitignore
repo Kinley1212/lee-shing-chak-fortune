@@ -21,6 +21,8 @@ Chat history/
 training/
 scripts/*
 !scripts/build_embedding_index.py
+!scripts/evaluate_rag.py
+!scripts/audit_knowledge_chunks.py
 
 # macOS
 .DS_Store

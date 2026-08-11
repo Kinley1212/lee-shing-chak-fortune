@@ -96,6 +96,11 @@ class HybridRAGTests(unittest.TestCase):
         self.assertEqual(results[0]["topic"], "事業")
         self.assertEqual(calls, [])
 
+    def test_exact_metadata_does_not_add_lower_priority_topics(self):
+        engine = self.make_engine()
+        results = engine.search("屬龍財運", top_k=3)
+        self.assertEqual([result["id"] for result in results], ["money"])
+
     def test_topic_alias_does_not_return_unspecified_zodiac(self):
         engine = self.make_engine()
         results = engine.search("我想轉工", top_k=3)
@@ -130,6 +135,28 @@ class HybridRAGTests(unittest.TestCase):
         engine = self.make_engine()
         self.assertFalse(engine.semantic_enabled)
         self.assertEqual(engine.embedding_count, 0)
+
+    def test_personal_query_without_zodiac_requests_clarification(self):
+        engine = self.make_engine()
+        self.assertTrue(engine.needs_zodiac_clarification("我今年財運如何？"))
+        self.assertFalse(engine.needs_zodiac_clarification("屬龍今年財運如何？"))
+
+    def test_history_zodiac_is_reused(self):
+        engine = self.make_engine()
+        enriched = engine.enrich_query(
+            "今年事業如何？",
+            [{"role": "user", "content": "我是屬龍的"}],
+        )
+        self.assertIn("屬龍", enriched)
+        self.assertFalse(engine.needs_zodiac_clarification(enriched))
+
+    def test_structured_citations_do_not_include_chunk_text(self):
+        engine = self.make_engine(embedder=lambda _query: [1.0, 0.0])
+        results = engine.search("屬龍財運", top_k=1)
+        citations = engine.citations(results)
+        self.assertEqual(citations[0]["source"], "測試全書")
+        self.assertEqual(citations[0]["page_start"], 10)
+        self.assertNotIn("text", citations[0])
 
 
 if __name__ == "__main__":

@@ -98,6 +98,8 @@ cp .env.example .env
 python3 scripts/extract_pdf.py       # Extract PDF text
 python3 scripts/build_knowledge.py   # Build knowledge base
 python3 scripts/build_embedding_index.py  # Build semantic index after knowledge changes
+python3 scripts/evaluate_rag.py           # Run the labelled live semantic evaluation
+python3 scripts/audit_knowledge_chunks.py # Audit chunk length, metadata, and duplicates
 
 cd app
 python3 main.py

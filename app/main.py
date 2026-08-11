@@ -34,6 +34,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = "gemini-2.5-flash"
 EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "gemini-embedding-001")
 EMBEDDING_DIMENSIONS = int(os.getenv("RAG_EMBEDDING_DIMENSIONS", "768"))
+RAG_LOG_RETRIEVAL = os.getenv("RAG_LOG_RETRIEVAL", "1") == "1"
 gemini_client  = genai.Client(api_key=GEMINI_API_KEY)
 
 # ── Gmail SMTP ────────────────────────────────────────────
@@ -92,9 +93,34 @@ rag = RAGEngine(
     query_embedder=embed_retrieval_query if GEMINI_API_KEY else None,
     semantic_weight=float(os.getenv("RAG_SEMANTIC_WEIGHT", "0.65")),
     min_semantic_score=float(os.getenv("RAG_MIN_SEMANTIC_SCORE", "0.62")),
+    unscoped_min_semantic_score=float(os.getenv("RAG_UNSCOPED_MIN_SEMANTIC_SCORE", "0.68")),
     expected_embedding_model=EMBEDDING_MODEL,
     expected_embedding_dimensions=EMBEDDING_DIMENSIONS,
 )
+
+
+def log_retrieval(query: str, results: list[dict], status: str, elapsed: float) -> None:
+    """Log retrieval diagnostics without storing the user's message or personal data."""
+    if not RAG_LOG_RETRIEVAL:
+        return
+    payload = {
+        **rag.query_metadata(query),
+        "status": status,
+        "elapsed": elapsed,
+        "result_count": len(results),
+        "results": [
+            {
+                "id": result.get("id"),
+                "topic": result.get("topic"),
+                "zodiac": result.get("zodiac"),
+                "method": result.get("_retrieval_method"),
+                "score": result.get("_retrieval_score"),
+                "semantic_score": result.get("_semantic_score"),
+            }
+            for result in results
+        ],
+    }
+    print("[RAG_METRIC] " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 # ── 網站密碼保護 ─────────────────────────────────────────
 SITE_PASSWORD = os.getenv("SITE_PASSWORD", "88888888")
@@ -261,7 +287,37 @@ def chat():
     if not user_msg:
         return jsonify({"error": "message 不能為空"}), 400
 
-    context = rag.get_context(user_msg)
+    retrieval_t0 = time.time()
+    retrieval_query = rag.enrich_query(user_msg, history)
+    if rag.needs_zodiac_clarification(retrieval_query):
+        retrieval_elapsed = round(time.time() - retrieval_t0, 3)
+        log_retrieval(retrieval_query, [], "needs_clarification", retrieval_elapsed)
+        return jsonify({
+            "reply": "要提供個人化的2026年運勢分析，我需要先知道你的生肖或出生年份。請告訴我其中一項，我再根據書本資料回答。",
+            "menu": detect_menu(user_msg),
+            "elapsed": 0,
+            "citations": [],
+            "needs_clarification": True,
+            "grounded": False,
+            "retrieval_elapsed": retrieval_elapsed,
+        })
+
+    results = rag.search(retrieval_query)
+    retrieval_elapsed = round(time.time() - retrieval_t0, 3)
+    citations = rag.citations(results)
+    if not results:
+        log_retrieval(retrieval_query, [], "no_evidence", retrieval_elapsed)
+        return jsonify({
+            "reply": "目前知識庫中沒有找到足夠相關的資料，因此我不會把回答說成來自李丞責博士的著作。你可以改問2026年生肖運勢、財運、事業、感情、健康、風水、五行或北帝靈籤。",
+            "menu": detect_menu(user_msg),
+            "elapsed": 0,
+            "citations": [],
+            "grounded": False,
+            "retrieval_elapsed": retrieval_elapsed,
+        })
+
+    log_retrieval(retrieval_query, results, "grounded", retrieval_elapsed)
+    context = rag.format_context(results)
 
     t0 = time.time()
     try:
@@ -270,7 +326,14 @@ def chat():
         return jsonify({"error": f"Gemini API 錯誤：{e}"}), 500
     elapsed = round(time.time() - t0, 2)
 
-    return jsonify({"reply": reply, "menu": detect_menu(user_msg), "elapsed": elapsed})
+    return jsonify({
+        "reply": reply,
+        "menu": detect_menu(user_msg),
+        "elapsed": elapsed,
+        "citations": citations,
+        "grounded": True,
+        "retrieval_elapsed": retrieval_elapsed,
+    })
 
 
 def send_report_email(to_addr: str, full_name: str, shengxiao: str,

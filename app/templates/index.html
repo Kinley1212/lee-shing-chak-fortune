@@ -132,6 +132,14 @@ html,body{
 .ts{font-size:.65rem;color:var(--text-dim);padding:0 4px}
 .row.user .ts{text-align:right}
 
+.citations{
+  margin-top:7px;padding:8px 10px;border-radius:8px;
+  background:rgba(13,13,26,.45);border:1px solid rgba(212,175,55,.2);
+  color:var(--text-dim);font-size:.7rem;line-height:1.5;
+}
+.citations-title{color:var(--gold);font-weight:700;margin-bottom:3px}
+.citation-item+.citation-item{margin-top:3px}
+
 /* 三點載入 */
 .dots{display:inline-flex;gap:5px;padding:2px 0}
 .dots span{
@@ -244,7 +252,7 @@ function scrollBottom() {
 
 // ── 氣泡渲染 ────────────────────────────────────
 
-function addBubble(text, isUser) {
+function addBubble(text, isUser, citations = []) {
   const row = document.createElement("div");
   row.className = "row " + (isUser ? "user" : "ai");
 
@@ -264,6 +272,31 @@ function addBubble(text, isUser) {
   ts.textContent = now();
 
   col.appendChild(bubble);
+  if (!isUser && citations.length) {
+    const citationBox = document.createElement("div");
+    citationBox.className = "citations";
+    const title = document.createElement("div");
+    title.className = "citations-title";
+    title.textContent = "參考資料";
+    citationBox.appendChild(title);
+    citations.forEach(item => {
+      const line = document.createElement("div");
+      line.className = "citation-item";
+      const labels = [];
+      if (item.zodiac) labels.push("屬" + item.zodiac);
+      if (item.topic) labels.push(item.topic);
+      if (item.hexagram) labels.push(item.hexagram + "卦");
+      let pages = "";
+      if (item.page_start !== null && item.page_start !== undefined) {
+        pages = "，第" + item.page_start;
+        if (item.page_end && item.page_end !== item.page_start) pages += "–" + item.page_end;
+        pages += "頁";
+      }
+      line.textContent = item.source + pages + (labels.length ? " · " + labels.join("・") : "");
+      citationBox.appendChild(line);
+    });
+    col.appendChild(citationBox);
+  }
   col.appendChild(ts);
   row.appendChild(av);
   row.appendChild(col);
@@ -355,7 +388,7 @@ async function sendMsg() {
     if (data.error) {
       addBubble("⚠️ " + data.error, false);
     } else {
-      addBubble(data.reply, false);
+      addBubble(data.reply, false, data.citations || []);
       history.push({role:"model", content: data.reply});
       if (history.length > 20) history = history.slice(-20);
 
