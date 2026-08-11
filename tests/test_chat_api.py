@@ -104,15 +104,41 @@ class ChatAPITests(unittest.TestCase):
         self.assertNotIn('id="memory-clear"', chat_html)
 
     def test_greeting_and_self_introduction_do_not_use_rag(self):
+        social_messages = [
+            "你好",
+            "你可以自我介紹一下嗎？",
+            "你會做啥？",
+            "介紹一下你自己",
+            "你識做咩㗎？",
+            "你有什么功能？",
+            "你是AI嗎？",
+            "你能幹什麼？",
+        ]
         with (
             patch.object(main.rag, "search") as search,
             patch.object(main, "call_gemini") as generate,
         ):
-            greeting = self.client.post("/chat", json={"message": "你好", "history": []})
-            identity = self.client.post("/chat", json={"message": "你可以自我介紹一下嗎？", "history": []})
-        self.assertTrue(greeting.get_json()["social"])
-        self.assertIn("AI玄學問答助手", greeting.get_json()["reply"])
-        self.assertTrue(identity.get_json()["social"])
+            responses = [
+                self.client.post("/chat", json={"message": message, "history": []})
+                for message in social_messages
+            ]
+        for message, response in zip(social_messages, responses):
+            with self.subTest(message=message):
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.get_json()["social"])
+                self.assertIn("AI玄學問答助手", response.get_json()["reply"])
+        search.assert_not_called()
+        generate.assert_not_called()
+
+    def test_casual_checkin_does_not_use_rag(self):
+        with (
+            patch.object(main.rag, "search") as search,
+            patch.object(main, "call_gemini") as generate,
+        ):
+            response = self.client.post("/chat", json={"message": "你好嗎？", "history": []})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["social"])
+        self.assertIn("謝謝你關心", response.get_json()["reply"])
         search.assert_not_called()
         generate.assert_not_called()
 

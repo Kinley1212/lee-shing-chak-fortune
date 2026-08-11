@@ -478,16 +478,35 @@ def chat_social_reply(user_msg: str) -> str | None:
     """Handle lightweight conversation without pretending it needs book evidence."""
     normalized = re.sub(r"[\s，。！？!?、,.：:～~]+", "", user_msg.lower())
     greetings = {"你好", "您好", "哈囉", "嗨", "hi", "hello", "早晨", "早安", "午安", "晚安", "在嗎", "喂"}
+    checkins = {"你好嗎", "你好吗", "最近好嗎", "最近好吗", "近來好嗎", "近来好吗", "你今天好嗎", "你今天好吗", "howareyou"}
     thanks = {"謝謝", "多謝", "唔該", "thankyou", "thanks", "明白了", "知道了"}
     goodbyes = {"再見", "拜拜", "bye", "下次再聊", "遲啲再傾"}
-    identity_phrases = ("你是誰", "你係邊個", "介紹一下自己", "自我介紹", "你可以做什麼", "你可以做咩", "你識做咩")
+    identity_phrases = (
+        "你是誰", "你是谁", "你係邊個", "你叫什麼", "你叫什么", "whoareyou",
+        "你是ai嗎", "你是ai吗", "你是真人嗎", "你是真人吗", "你是機器人嗎", "你是机器人吗",
+        "你有名字嗎", "你有名字吗", "你幾歲", "你几岁", "你多大",
+        "自我介紹", "自我介绍", "介紹一下自己", "介绍一下自己", "介紹一下你自己", "介绍一下你自己",
+    )
+    capability_phrases = (
+        "你會做", "你会做", "你能做", "你能幹", "你能干", "你可以做", "你識做", "你識咩", "你会啥", "你會啥",
+        "你是做什麼的", "你是做什么的",
+        "你能幫", "你能帮", "你可以幫", "你可以帮", "你有什麼功能", "你有什么功能", "你有啥功能",
+        "你有咩功能", "你可以回答什麼", "你可以回答什么", "你識答咩", "whatcanyoudo",
+    )
+    introduction_query = len(normalized) <= 32 and (
+        any(phrase in normalized for phrase in identity_phrases)
+        or any(phrase in normalized for phrase in capability_phrases)
+        or (("介紹" in normalized or "介绍" in normalized) and ("你" in normalized or "自己" in normalized))
+    )
 
-    if normalized in greetings or (len(normalized) <= 18 and any(phrase in normalized for phrase in identity_phrases)):
+    if normalized in greetings or introduction_query:
         return (
             "你好，我是李丞責博士的AI玄學問答助手。我會根據李丞責博士的著作，"
             "回答2026年生肖運勢、財運、事業、感情、健康、風水、五行、太歲及北帝靈籤等問題。"
             "如果你想了解個人運勢，可以告訴我生肖或完整出生日期，再說明想問的事情。"
         )
+    if normalized in checkins:
+        return "我很好，謝謝你關心。你今天想聊聊，還是想了解2026年的生肖運勢或其他玄學問題？"
     if normalized in thanks:
         return "不用客氣，很高興能幫到你。如果還想了解其他運勢或風水問題，直接告訴我便可以。"
     if normalized in goodbyes:
