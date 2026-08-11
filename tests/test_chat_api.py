@@ -100,8 +100,21 @@ class ChatAPITests(unittest.TestCase):
         self.assertNotIn('/menu/', chat_html)
         self.assertNotIn("已核對 6/6", report_html)
         self.assertIn("請先輸入生肖或完整出生日期", chat_html)
-        self.assertIn('id="memory-card"', chat_html)
-        self.assertIn('id="memory-clear"', chat_html)
+        self.assertNotIn('id="memory-card"', chat_html)
+        self.assertNotIn('id="memory-clear"', chat_html)
+
+    def test_greeting_and_self_introduction_do_not_use_rag(self):
+        with (
+            patch.object(main.rag, "search") as search,
+            patch.object(main, "call_gemini") as generate,
+        ):
+            greeting = self.client.post("/chat", json={"message": "你好", "history": []})
+            identity = self.client.post("/chat", json={"message": "你可以自我介紹一下嗎？", "history": []})
+        self.assertTrue(greeting.get_json()["social"])
+        self.assertIn("AI玄學問答助手", greeting.get_json()["reply"])
+        self.assertTrue(identity.get_json()["social"])
+        search.assert_not_called()
+        generate.assert_not_called()
 
     def test_chat_can_infer_zodiac_from_birth_date_and_recent_history(self):
         current = main.enrich_chat_birth_date("1990年5月20日出生，今年財運如何？", [])
@@ -111,7 +124,7 @@ class ChatAPITests(unittest.TestCase):
         self.assertIn("生肖屬馬", current)
         self.assertIn("生肖屬馬", follow_up)
 
-    def test_structured_profile_persists_across_requests_and_can_be_cleared(self):
+    def test_structured_profile_persists_across_requests(self):
         result = {
             "id": "horse-wealth", "text": "財運原文", "source": "測試全書",
             "zodiac": "馬", "topic": "財運", "_retrieval_method": "metadata",
@@ -133,12 +146,26 @@ class ChatAPITests(unittest.TestCase):
         self.assertTrue(second.get_json()["memory_used"])
         self.assertIn("屬馬", search.call_args_list[1].args[0])
 
-        stored = self.client.get("/chat/profile").get_json()
-        self.assertTrue(stored["has_memory"])
-        self.assertEqual(stored["profile"]["zodiac"], "馬")
-        cleared = self.client.delete("/chat/profile").get_json()
-        self.assertFalse(cleared["has_memory"])
-        self.assertFalse(self.client.get("/chat/profile").get_json()["has_memory"])
+    def test_new_identity_replaces_old_profile_silently(self):
+        result = {
+            "id": "source", "text": "原文", "source": "測試全書",
+            "zodiac": "牛", "topic": "事業", "_retrieval_method": "metadata",
+            "_retrieval_score": 1.0,
+        }
+        with (
+            patch.object(main.rag, "search", return_value=[result]),
+            patch.object(main, "call_gemini", return_value="完整回答"),
+        ):
+            self.client.post("/chat", json={
+                "message": "我是男性，1990年5月20日出生，今年財運如何？", "history": [],
+            })
+            changed = self.client.post("/chat", json={
+                "message": "改為幫另一位問：我是女性，屬牛，今年事業如何？", "history": [],
+            }).get_json()["profile"]
+        self.assertIsNone(changed["birth_date"])
+        self.assertEqual(changed["zodiac"], "牛")
+        self.assertEqual(changed["gender"], "女")
+        self.assertEqual(changed["topics"], ["事業"])
 
     def test_conditional_reranker_skips_exact_match_and_runs_for_close_semantic_results(self):
         exact = [

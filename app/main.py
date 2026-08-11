@@ -287,11 +287,17 @@ def update_chat_profile(user_msg: str, history: list[dict]) -> tuple[dict, bool]
     explicit_zodiac = metadata["zodiacs"][0] if metadata["zodiacs"] else None
 
     if birth:
+        inferred_zodiac = calculate_bazi(birth.year, birth.month, birth.day)["shengxiao"]
+        if (
+            (profile.get("birth_date") and profile["birth_date"] != birth.isoformat())
+            or (profile.get("zodiac") and profile["zodiac"] != inferred_zodiac)
+        ):
+            profile = _empty_chat_profile()
         profile["birth_date"] = birth.isoformat()
-        profile["zodiac"] = calculate_bazi(birth.year, birth.month, birth.day)["shengxiao"]
+        profile["zodiac"] = inferred_zodiac
     elif explicit_zodiac:
         if profile.get("zodiac") and profile["zodiac"] != explicit_zodiac:
-            profile["birth_date"] = None
+            profile = _empty_chat_profile()
         profile["zodiac"] = explicit_zodiac
     elif not profile.get("zodiac"):
         # Smoothly migrate context created before structured memory was enabled.
@@ -348,7 +354,7 @@ SITE_PASSWORD = os.getenv("SITE_PASSWORD", "88888888")
 # 不需要登入即可訪問的路由（登入頁本身、靜態檔案、健康檢查）
 PUBLIC_ENDPOINTS = {"login", "static", "health"}
 # 前端 AJAX 呼叫的 API：未登入時回傳 401 JSON，而非導向登入頁
-JSON_ENDPOINTS = {"chat", "chat_profile", "analyze", "test_email"}
+JSON_ENDPOINTS = {"chat", "analyze", "test_email"}
 
 
 @app.before_request
@@ -466,6 +472,27 @@ def clean_chat_reply(text: str) -> str:
     cleaned = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1（\2）", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
+
+
+def chat_social_reply(user_msg: str) -> str | None:
+    """Handle lightweight conversation without pretending it needs book evidence."""
+    normalized = re.sub(r"[\s，。！？!?、,.：:～~]+", "", user_msg.lower())
+    greetings = {"你好", "您好", "哈囉", "嗨", "hi", "hello", "早晨", "早安", "午安", "晚安", "在嗎", "喂"}
+    thanks = {"謝謝", "多謝", "唔該", "thankyou", "thanks", "明白了", "知道了"}
+    goodbyes = {"再見", "拜拜", "bye", "下次再聊", "遲啲再傾"}
+    identity_phrases = ("你是誰", "你係邊個", "介紹一下自己", "自我介紹", "你可以做什麼", "你可以做咩", "你識做咩")
+
+    if normalized in greetings or (len(normalized) <= 18 and any(phrase in normalized for phrase in identity_phrases)):
+        return (
+            "你好，我是李丞責博士的AI玄學問答助手。我會根據李丞責博士的著作，"
+            "回答2026年生肖運勢、財運、事業、感情、健康、風水、五行、太歲及北帝靈籤等問題。"
+            "如果你想了解個人運勢，可以告訴我生肖或完整出生日期，再說明想問的事情。"
+        )
+    if normalized in thanks:
+        return "不用客氣，很高興能幫到你。如果還想了解其他運勢或風水問題，直接告訴我便可以。"
+    if normalized in goodbyes:
+        return "再見，祝你事事順利。有需要時再回來找我。"
+    return None
 
 
 def enrich_chat_birth_date(user_msg: str, history: list[dict]) -> str:
@@ -612,16 +639,6 @@ def health():
     })
 
 
-@app.route("/chat/profile", methods=["GET", "DELETE"])
-def chat_profile():
-    if request.method == "DELETE":
-        clear_chat_profile()
-        return jsonify({"profile": public_chat_profile(_empty_chat_profile()), "has_memory": False})
-    profile = get_chat_profile(create=False)
-    public_profile = public_chat_profile(profile)
-    return jsonify({"profile": public_profile, "has_memory": any(public_profile.values())})
-
-
 @app.route("/chat", methods=["POST"])
 def chat():
     data     = request.get_json(silent=True) or {}
@@ -630,6 +647,22 @@ def chat():
 
     if not user_msg:
         return jsonify({"error": "message 不能為空"}), 400
+
+    social_reply = chat_social_reply(user_msg)
+    if social_reply:
+        profile, _ = update_chat_profile(user_msg, history)
+        log_retrieval(user_msg, [], "social", 0)
+        return jsonify({
+            "reply": social_reply,
+            "elapsed": 0,
+            "citations": [],
+            "grounded": False,
+            "social": True,
+            "retrieval_elapsed": 0,
+            "profile": public_chat_profile(profile),
+            "memory_used": False,
+            "reranked": False,
+        })
 
     retrieval_t0 = time.time()
     profile, memory_used = update_chat_profile(user_msg, history)
