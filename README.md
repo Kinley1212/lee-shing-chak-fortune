@@ -109,3 +109,6 @@ The semantic index is checked against a hash of the knowledge corpus at startup.
 missing, stale, or the query embedding request fails, retrieval automatically falls back to
 the existing metadata and keyword strategy. `GET /health` reports whether semantic search
 is active and how many document embeddings were loaded.
+
+See [RAG Improvement Roadmap](./docs/RAG_IMPROVEMENT_ROADMAP.md) for the current retrieval
+architecture, relevance-threshold rationale, evaluation plan, and recommended next steps.
