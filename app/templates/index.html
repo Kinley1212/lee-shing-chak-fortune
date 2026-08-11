@@ -2,422 +2,132 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>李丞責博士 · 玄學AI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>李丞責博士 · AI玄學問答</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-
 :root{
-  --bg:#0d0d1a;
-  --header-bg:#1a0a2e;
-  --menu-bg:#1a1a2e;
-  --input-bg:#12122a;
-  --bubble-ai:#2a1a4a;
-  --bubble-user-from:#6a0dad;
-  --bubble-user-to:#9b30ff;
-  --gold:#d4af37;
-  --gold-light:#f0d870;
-  --border:#2a2a5a;
-  --text:#e8e8f8;
-  --text-dim:#8888aa;
-  --green:#4caf50;
-  --avatar-bg:#3d1c6e;
+  --bg:#faf7f3;--card:#fff;--card2:#f5f0ea;
+  --red:#990f23;--red2:#c41429;--red3:#7a0a1b;
+  --gold:#b8860b;--gold2:#d4a820;--gold3:#8b6510;
+  --border:rgba(153,15,35,.15);--text:#1a0808;--text2:#4a2828;--text3:#9a7070;
 }
-
-html,body{
-  height:100%;
-  background:var(--bg);
-  color:var(--text);
-  font-family:"PingFang TC","Hiragino Sans TC","Microsoft JhengHei",sans-serif;
-  -webkit-font-smoothing:antialiased;
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:"PingFang TC","Hiragino Sans TC","Microsoft JhengHei",sans-serif;-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(ellipse 48% 60% at 0% 40%,rgba(153,15,35,.06),transparent 70%),radial-gradient(ellipse 40% 50% at 100% 12%,rgba(184,134,11,.07),transparent 65%),var(--bg)}
+#app{width:min(900px,100%);height:100dvh;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:rgba(250,247,243,.82);border-left:1px solid var(--border);border-right:1px solid var(--border);box-shadow:0 0 55px rgba(153,15,35,.07)}
+#header{min-height:78px;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-shrink:0;background:rgba(255,255,255,.94);border-bottom:1px solid var(--border);backdrop-filter:blur(12px);z-index:10}
+.back-link{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--red);text-decoration:none;border:1px solid var(--border);background:var(--bg);font-size:1.1rem;transition:background .2s,border-color .2s}
+.back-link:hover{background:#fff3f4;border-color:rgba(153,15,35,.35)}
+.header-avatar{width:52px;height:52px;border-radius:50%;object-fit:cover;object-position:center 18%;border:2px solid rgba(184,134,11,.62);box-shadow:0 4px 14px rgba(153,15,35,.12)}
+.header-info{min-width:0;flex:1}.header-name{font-size:1rem;font-weight:700;color:var(--red3);letter-spacing:.6px}
+.header-status{font-size:.72rem;color:var(--text3);display:flex;align-items:center;gap:6px;margin-top:4px}
+.status-dot{width:7px;height:7px;border-radius:50%;background:#279348;box-shadow:0 0 0 3px rgba(39,147,72,.1)}
+.report-link{padding:9px 14px;border-radius:999px;text-decoration:none;color:var(--gold3);font-size:.76rem;font-weight:700;border:1px solid rgba(184,134,11,.28);background:rgba(184,134,11,.06)}
+#chat{flex:1;overflow-y:auto;padding:24px clamp(14px,4vw,34px) 18px;display:flex;flex-direction:column;gap:16px;scroll-behavior:smooth}
+#chat::-webkit-scrollbar{width:5px}#chat::-webkit-scrollbar-thumb{background:rgba(153,15,35,.16);border-radius:99px}
+.scope-note{align-self:center;max-width:620px;text-align:center;color:var(--text3);font-size:.7rem;line-height:1.6;padding:7px 13px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.7)}
+.row{display:flex;gap:9px;max-width:min(82%,680px);animation:fadeUp .22s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.row.ai{align-self:flex-start}.row.user{align-self:flex-end;flex-direction:row-reverse}
+.row-avatar{width:34px;height:34px;border-radius:50%;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700}
+.row.ai .row-avatar{object-fit:cover;object-position:center 18%;border:1px solid rgba(184,134,11,.5);background:#fff}
+.row.user .row-avatar{color:#fff;background:linear-gradient(135deg,var(--red3),var(--red))}
+.message-col{display:flex;flex-direction:column;gap:4px;min-width:0}
+.bubble{padding:12px 15px;font-size:.875rem;line-height:1.75;word-break:break-word;white-space:pre-wrap}
+.row.ai .bubble{color:var(--text2);background:var(--card);border:1px solid var(--border);border-radius:5px 15px 15px 15px;box-shadow:0 4px 16px rgba(153,15,35,.045)}
+.row.user .bubble{color:#fff;background:linear-gradient(135deg,var(--red3),var(--red));border-radius:15px 5px 15px 15px;box-shadow:0 5px 16px rgba(153,15,35,.13)}
+.timestamp{padding:0 5px;color:var(--text3);font-size:.64rem}.row.user .timestamp{text-align:right}
+.citations{padding:9px 11px;border-left:3px solid var(--gold);border-radius:6px;background:rgba(184,134,11,.065);color:var(--gold3);font-size:.7rem;line-height:1.55}
+.citations-title{font-weight:700;margin-bottom:4px}.citation-item+.citation-item{margin-top:3px}
+.dots{display:inline-flex;gap:5px;padding:4px 1px}.dots span{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:blink .9s infinite;opacity:.25}
+.dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:.22;transform:scale(.82)}40%{opacity:1;transform:scale(1)}}
+#composer{flex-shrink:0;padding:12px clamp(14px,4vw,28px) 16px;background:rgba(255,255,255,.95);border-top:1px solid var(--border);backdrop-filter:blur(12px)}
+.input-row{display:flex;align-items:flex-end;gap:10px;max-width:760px;margin:0 auto;padding:7px 7px 7px 15px;border:1px solid rgba(153,15,35,.22);border-radius:18px;background:#fff;box-shadow:0 5px 20px rgba(153,15,35,.06)}
+#txt{flex:1;min-height:40px;max-height:130px;padding:9px 0;border:none;outline:none;resize:none;color:var(--text);font:inherit;font-size:.875rem;line-height:1.5;background:transparent}
+#txt::placeholder{color:var(--text3)}
+#sbtn{width:42px;height:42px;border:0;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--gold3),var(--gold));color:#fff;font-size:1rem;transition:opacity .2s,transform .1s}
+#sbtn:hover{opacity:.88}#sbtn:active{transform:scale(.94)}#sbtn:disabled{opacity:.38;cursor:not-allowed}
+.composer-note{text-align:center;color:var(--text3);font-size:.65rem;margin-top:7px}
+@media(max-width:600px){
+  #app{border:0}.report-link{display:none}#header{padding:9px 12px;min-height:72px}
+  .header-avatar{width:46px;height:46px}.row{max-width:91%}#chat{padding-top:18px}.scope-note{border-radius:10px}
 }
-
-/* ── 外層容器（手機視圖居中） ── */
-#app{
-  max-width:480px;
-  margin:0 auto;
-  height:100dvh;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-  position:relative;
-  box-shadow:0 0 60px rgba(106,13,173,.15);
-}
-
-/* ── 頂部標題欄 ── */
-#header{
-  height:60px;
-  min-height:60px;
-  background:var(--header-bg);
-  border-bottom:1px solid var(--border);
-  display:flex;
-  align-items:center;
-  padding:0 16px;
-  gap:12px;
-  flex-shrink:0;
-  z-index:10;
-}
-
-#hd-avatar{
-  width:40px;height:40px;border-radius:50%;flex-shrink:0;
-  background:var(--avatar-bg);
-  border:2px solid var(--gold);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.1rem;font-weight:700;color:var(--gold);
-  box-shadow:0 0 10px rgba(212,175,55,.3);
-}
-
-#hd-info{flex:1;min-width:0}
-#hd-name{
-  font-size:.95rem;font-weight:700;letter-spacing:.5px;
-  background:linear-gradient(90deg,var(--gold),var(--gold-light));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-#hd-status{
-  font-size:.72rem;color:var(--text-dim);
-  display:flex;align-items:center;gap:5px;margin-top:2px;
-}
-#hd-dot{
-  width:7px;height:7px;border-radius:50%;
-  background:var(--green);
-  box-shadow:0 0 5px var(--green);
-  animation:pulse 2s infinite;
-}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-
-/* ── 聊天區域 ── */
-#chat{
-  flex:1;overflow-y:auto;
-  padding:16px 14px 8px;
-  display:flex;flex-direction:column;gap:14px;
-  scroll-behavior:smooth;
-}
-#chat::-webkit-scrollbar{width:3px}
-#chat::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-
-/* ── 訊息行 ── */
-.row{display:flex;gap:8px;max-width:88%;animation:fadeUp .25s ease}
-@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-.row.ai{align-self:flex-start}
-.row.user{align-self:flex-end;flex-direction:row-reverse}
-
-.row-av{
-  width:30px;height:30px;border-radius:50%;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  font-size:.8rem;font-weight:700;margin-top:2px;
-}
-.row.ai .row-av{background:var(--avatar-bg);color:var(--gold);border:1px solid var(--gold)}
-.row.user .row-av{background:linear-gradient(135deg,#6a0dad,#9b30ff);color:#fff}
-
-.col{display:flex;flex-direction:column;gap:3px}
-
-.bubble{
-  padding:10px 14px;line-height:1.65;font-size:.875rem;
-  word-break:break-word;white-space:pre-wrap;
-}
-.row.ai .bubble{
-  background:var(--bubble-ai);
-  border:1px solid rgba(106,13,173,.4);
-  border-radius:4px 14px 14px 14px;
-  color:var(--text);
-}
-.row.user .bubble{
-  background:linear-gradient(135deg,var(--bubble-user-from),var(--bubble-user-to));
-  border-radius:14px 4px 14px 14px;
-  color:#fff;
-}
-
-.ts{font-size:.65rem;color:var(--text-dim);padding:0 4px}
-.row.user .ts{text-align:right}
-
-.citations{
-  margin-top:7px;padding:8px 10px;border-radius:8px;
-  background:rgba(13,13,26,.45);border:1px solid rgba(212,175,55,.2);
-  color:var(--text-dim);font-size:.7rem;line-height:1.5;
-}
-.citations-title{color:var(--gold);font-weight:700;margin-bottom:3px}
-.citation-item+.citation-item{margin-top:3px}
-
-/* 三點載入 */
-.dots{display:inline-flex;gap:5px;padding:2px 0}
-.dots span{
-  width:7px;height:7px;border-radius:50%;
-  background:var(--gold);opacity:.35;
-  animation:blink .9s infinite;
-}
-.dots span:nth-child(2){animation-delay:.2s}
-.dots span:nth-child(3){animation-delay:.4s}
-@keyframes blink{0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
-
-/* ── 選單按鈕區 ── */
-#menu{
-  padding:10px 14px 8px;
-  background:var(--menu-bg);
-  border-top:1px solid var(--border);
-  display:flex;flex-wrap:wrap;gap:8px;
-  flex-shrink:0;
-  min-height:52px;
-}
-
-.mbtn{
-  padding:7px 16px;border-radius:8px;font-size:.82rem;
-  border:1px solid rgba(212,175,55,.35);
-  background:rgba(61,28,110,.4);
-  color:var(--text);cursor:pointer;
-  transition:background .18s,border-color .18s,color .18s;
-  white-space:nowrap;
-}
-.mbtn:hover{background:rgba(106,13,173,.5);border-color:var(--gold);color:var(--gold)}
-.mbtn:active{transform:scale(.96);background:rgba(155,48,255,.5)}
-
-/* ── 輸入區 ── */
-#inputbar{
-  display:flex;align-items:center;gap:10px;
-  padding:10px 14px 12px;
-  background:var(--input-bg);
-  border-top:1px solid var(--border);
-  flex-shrink:0;
-}
-
-#txt{
-  flex:1;padding:10px 16px;
-  border-radius:22px;border:1px solid var(--border);
-  background:#1e1e3a;color:var(--text);
-  font-size:.875rem;outline:none;
-  font-family:inherit;
-  transition:border-color .2s;
-}
-#txt:focus{border-color:#9b30ff}
-#txt::placeholder{color:var(--text-dim)}
-
-#sbtn{
-  width:42px;height:42px;border-radius:50%;border:none;flex-shrink:0;
-  background:linear-gradient(135deg,#6a0dad,#9b30ff);
-  color:#fff;font-size:1rem;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  transition:opacity .2s,transform .1s;
-}
-#sbtn:hover{opacity:.88}
-#sbtn:active{transform:scale(.93)}
-#sbtn:disabled{opacity:.35;cursor:not-allowed}
 </style>
 </head>
 <body>
-<div id="app">
-
-  <!-- 頂部標題欄 -->
-  <div id="header">
-    <div id="hd-avatar">李</div>
-    <div id="hd-info">
-      <div id="hd-name">李丞責博士</div>
-      <div id="hd-status"><span id="hd-dot"></span>玄學AI · 在線</div>
+<main id="app">
+  <header id="header">
+    <a class="back-link" href="/" aria-label="返回運勢報告">‹</a>
+    <img class="header-avatar" src="/static/portrait.png" alt="李丞責博士"/>
+    <div class="header-info">
+      <div class="header-name">李丞責博士 · AI玄學問答</div>
+      <div class="header-status"><span class="status-dot"></span>依據書本知識庫回答</div>
     </div>
-  </div>
-
-  <!-- 聊天區域 -->
-  <div id="chat"></div>
-
-  <!-- 選單按鈕區 -->
-  <div id="menu"></div>
-
-  <!-- 輸入區 -->
-  <div id="inputbar">
-    <input id="txt" type="text" placeholder="輸入問題，例如：屬馬今年財運如何？" autocomplete="off"/>
-    <button id="sbtn" onclick="sendMsg()">&#10148;</button>
-  </div>
-
-</div>
-
+    <a class="report-link" href="/">返回運勢報告</a>
+  </header>
+  <section id="chat" aria-live="polite">
+    <div class="scope-note">可詢問2026生肖運勢、財運、事業、感情、健康、風水、五行、太歲及北帝靈籤</div>
+  </section>
+  <footer id="composer">
+    <div class="input-row">
+      <textarea id="txt" rows="1" placeholder="輸入問題，例如：屬馬今年事業運如何？" aria-label="輸入問題"></textarea>
+      <button id="sbtn" type="button" aria-label="發送訊息">➤</button>
+    </div>
+    <div class="composer-note">回答依據現有知識庫，玄學內容僅供參考</div>
+  </footer>
+</main>
 <script>
-const chatEl = document.getElementById("chat");
-const menuEl = document.getElementById("menu");
-const txtEl  = document.getElementById("txt");
-const sbtnEl = document.getElementById("sbtn");
-
-// 對話歷史（最近10輪）
-let history = [];
-let currentMenu = "main";
-
-// ── 工具 ─────────────────────────────────────────
-
-function now() {
-  return new Date().toLocaleTimeString("zh-HK",{hour:"2-digit",minute:"2-digit"});
+const chatEl=document.getElementById("chat"),txtEl=document.getElementById("txt"),sbtnEl=document.getElementById("sbtn");
+let history=[];
+function now(){return new Date().toLocaleTimeString("zh-HK",{hour:"2-digit",minute:"2-digit"})}
+function scrollBottom(){chatEl.scrollTop=chatEl.scrollHeight}
+function plainText(value){return String(value||"").replace(/\*\*/g,"").replace(/__/g,"").replace(/\x60{1,3}/g,"").replace(/^\s{0,3}#{1,6}\s*/gm,"").replace(/^\s*[-*+]\s+/gm,"• ").replace(/^\s*>\s?/gm,"").replace(/~~|\*/g,"").replace(/\n{3,}/g,"\n\n").trim()}
+function avatar(isUser){
+  if(isUser){const el=document.createElement("div");el.className="row-avatar";el.textContent="你";return el}
+  const img=document.createElement("img");img.className="row-avatar";img.src="/static/portrait.png";img.alt="李丞責博士";return img
 }
-
-function scrollBottom() {
-  chatEl.scrollTop = chatEl.scrollHeight;
-}
-
-// ── 氣泡渲染 ────────────────────────────────────
-
-function addBubble(text, isUser, citations = []) {
-  const row = document.createElement("div");
-  row.className = "row " + (isUser ? "user" : "ai");
-
-  const av = document.createElement("div");
-  av.className = "row-av";
-  av.textContent = isUser ? "你" : "李";
-
-  const col = document.createElement("div");
-  col.className = "col";
-
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.textContent = text;
-
-  const ts = document.createElement("div");
-  ts.className = "ts";
-  ts.textContent = now();
-
-  col.appendChild(bubble);
-  if (!isUser && citations.length) {
-    const citationBox = document.createElement("div");
-    citationBox.className = "citations";
-    const title = document.createElement("div");
-    title.className = "citations-title";
-    title.textContent = "參考資料";
-    citationBox.appendChild(title);
-    citations.forEach(item => {
-      const line = document.createElement("div");
-      line.className = "citation-item";
-      const labels = [];
-      if (item.zodiac) labels.push("屬" + item.zodiac);
-      if (item.topic) labels.push(item.topic);
-      if (item.hexagram) labels.push(item.hexagram + "卦");
-      let pages = "";
-      if (item.page_start !== null && item.page_start !== undefined) {
-        pages = "，第" + item.page_start;
-        if (item.page_end && item.page_end !== item.page_start) pages += "–" + item.page_end;
-        pages += "頁";
-      }
-      line.textContent = item.source + pages + (labels.length ? " · " + labels.join("・") : "");
-      citationBox.appendChild(line);
-    });
-    col.appendChild(citationBox);
+function addBubble(text,isUser,citations=[]){
+  const row=document.createElement("div");row.className="row "+(isUser?"user":"ai");
+  const col=document.createElement("div");col.className="message-col";
+  const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=plainText(text);col.appendChild(bubble);
+  if(!isUser&&citations.length){
+    const box=document.createElement("div");box.className="citations";
+    const title=document.createElement("div");title.className="citations-title";title.textContent="原書依據";box.appendChild(title);
+    citations.forEach(item=>{
+      const line=document.createElement("div");line.className="citation-item";const labels=[];
+      if(item.zodiac)labels.push("屬"+item.zodiac);if(item.topic)labels.push(item.topic);if(item.hexagram)labels.push(item.hexagram+"卦");
+      let pages="";if(item.page_start!==null&&item.page_start!==undefined){pages="，第"+item.page_start;if(item.page_end&&item.page_end!==item.page_start)pages+="–"+item.page_end;pages+="頁"}
+      line.textContent=(item.source||"知識庫")+pages+(labels.length?" · "+labels.join("・"):"");box.appendChild(line)
+    });col.appendChild(box)
   }
-  col.appendChild(ts);
-  row.appendChild(av);
-  row.appendChild(col);
-  chatEl.appendChild(row);
-  scrollBottom();
-  return bubble;
+  const ts=document.createElement("div");ts.className="timestamp";ts.textContent=now();col.appendChild(ts);
+  row.appendChild(avatar(isUser));row.appendChild(col);chatEl.appendChild(row);scrollBottom()
 }
-
-function showLoading() {
-  const row = document.createElement("div");
-  row.className = "row ai";
-  row.id = "loading-row";
-
-  const av = document.createElement("div");
-  av.className = "row-av";
-  av.textContent = "李";
-
-  const col = document.createElement("div");
-  col.className = "col";
-
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = '<div class="dots"><span></span><span></span><span></span></div>';
-
-  col.appendChild(bubble);
-  row.appendChild(av);
-  row.appendChild(col);
-  chatEl.appendChild(row);
-  scrollBottom();
+function showLoading(){
+  const row=document.createElement("div");row.className="row ai";row.id="loading-row";
+  const col=document.createElement("div");col.className="message-col";const bubble=document.createElement("div");bubble.className="bubble";
+  bubble.innerHTML='<span class="dots"><span></span><span></span><span></span></span>';
+  col.appendChild(bubble);row.appendChild(avatar(false));row.appendChild(col);chatEl.appendChild(row);scrollBottom()
 }
-
-function removeLoading() {
-  const el = document.getElementById("loading-row");
-  if (el) el.remove();
+function removeLoading(){document.getElementById("loading-row")?.remove()}
+function resizeInput(){txtEl.style.height="auto";txtEl.style.height=Math.min(txtEl.scrollHeight,130)+"px"}
+async function sendMsg(){
+  const text=txtEl.value.trim();if(!text||sbtnEl.disabled)return;
+  const priorHistory=history.slice(-10);txtEl.value="";resizeInput();sbtnEl.disabled=true;
+  addBubble(text,true);history.push({role:"user",content:text});if(history.length>20)history=history.slice(-20);showLoading();
+  try{
+    const res=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,history:priorHistory})});
+    const data=await res.json();removeLoading();
+    if(!res.ok||data.error){addBubble("暫時無法完成回答："+(data.error||"請稍後再試。"),false)}
+    else{const reply=plainText(data.reply);addBubble(reply,false,data.citations||[]);history.push({role:"model",content:reply});if(history.length>20)history=history.slice(-20)}
+  }catch(error){removeLoading();addBubble("網絡連線出現問題，請稍後再試。",false)}
+  finally{sbtnEl.disabled=false;txtEl.focus()}
 }
-
-// ── 選單 ─────────────────────────────────────────
-
-async function loadMenu(name) {
-  try {
-    const r = await fetch("/menu/" + name);
-    const d = await r.json();
-    currentMenu = name;
-    menuEl.innerHTML = "";
-    d.buttons.forEach(btn => {
-      const b = document.createElement("button");
-      b.className = "mbtn";
-      b.textContent = btn.label;
-      b.onclick = () => {
-        if (btn.action === "nav_main") {
-          loadMenu("main");
-        } else {
-          txtEl.value = btn.label;
-          sendMsg();
-        }
-      };
-      menuEl.appendChild(b);
-    });
-  } catch(e) {
-    console.error("選單載入失敗", e);
-  }
-}
-
-// ── 發送訊息 ─────────────────────────────────────
-
-async function sendMsg() {
-  const text = txtEl.value.trim();
-  if (!text || sbtnEl.disabled) return;
-
-  txtEl.value = "";
-  sbtnEl.disabled = true;
-
-  addBubble(text, true);
-  showLoading();
-
-  // 加入歷史
-  history.push({role:"user", content: text});
-  if (history.length > 20) history = history.slice(-20);
-
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({message: text, history: history.slice(-10)})
-    });
-    const data = await res.json();
-    removeLoading();
-
-    if (data.error) {
-      addBubble("⚠️ " + data.error, false);
-    } else {
-      addBubble(data.reply, false, data.citations || []);
-      history.push({role:"model", content: data.reply});
-      if (history.length > 20) history = history.slice(-20);
-
-      if (data.menu && data.menu !== currentMenu) {
-        await loadMenu(data.menu);
-      }
-    }
-  } catch(e) {
-    removeLoading();
-    addBubble("⚠️ 網絡錯誤，請稍後再試。", false);
-  } finally {
-    sbtnEl.disabled = false;
-    txtEl.focus();
-  }
-}
-
-// Enter 鍵發送
-txtEl.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
-});
-
-// ── 初始化 ───────────────────────────────────────
-
-function init() {
-  addBubble("您好！我是李丞責博士。\n\n我擅長紫微斗數、奇門遁甲、九宮飛星風水，可為您分析2026年各生肖運勢。\n\n請問有什麼可以為您解答？", false);
-  loadMenu("main");
-}
-
-init();
+txtEl.addEventListener("input",resizeInput);
+txtEl.addEventListener("keydown",event=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();sendMsg()}});
+sbtnEl.addEventListener("click",sendMsg);
+addBubble("您好，我是李丞責博士的AI玄學問答助手。你可以告訴我生肖及想了解的主題，我會根據現有書本資料回答，並列出實際依據。",false);
 </script>
 </body>
 </html>

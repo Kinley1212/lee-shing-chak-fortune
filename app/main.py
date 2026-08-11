@@ -60,13 +60,6 @@ def _load_system_prompt() -> str:
 
 SYSTEM_PROMPT = _load_system_prompt()
 
-# ── 選單定義 ─────────────────────────────────────────────
-MENUS: dict[str, list[str]] = {
-    "main": ["紫微斗數流年", "奇門遁甲", "塔羅牌占卜", "卜卦（六爻）", "今日運勢", "關於李丞責博士"],
-    "ziwei": ["今年財運", "今年感情", "今年事業", "注意月份", "化解方法", "返回主選單"],
-    "qimen": ["問事業", "問財運", "問感情", "問搬遷", "如何增強運勢", "返回主選單"],
-}
-
 # ── Flask App ──────────────────────────────────────────
 app = Flask(__name__)
 app.json.ensure_ascii = False
@@ -190,7 +183,7 @@ SITE_PASSWORD = os.getenv("SITE_PASSWORD", "88888888")
 # 不需要登入即可訪問的路由（登入頁本身、靜態檔案、健康檢查）
 PUBLIC_ENDPOINTS = {"login", "static", "health"}
 # 前端 AJAX 呼叫的 API：未登入時回傳 401 JSON，而非導向登入頁
-JSON_ENDPOINTS = {"chat", "analyze", "menu", "test_email"}
+JSON_ENDPOINTS = {"chat", "analyze", "test_email"}
 
 
 @app.before_request
@@ -224,22 +217,6 @@ def logout():
 
 # ── 工具函數 ───────────────────────────────────────────
 
-def detect_menu(msg: str) -> str:
-    if any(k in msg for k in ["紫微", "斗數", "流年", "命盤"]):
-        return "ziwei"
-    if any(k in msg for k in ["奇門", "遁甲"]):
-        return "qimen"
-    if "塔羅" in msg:
-        return "tarot"
-    if any(k in msg for k in ["卜卦", "六爻"]):
-        return "gua"
-    if any(k in msg for k in ["返回", "主選單"]):
-        return "main"
-    if any(k in msg for k in ["財運", "感情", "事業", "健康", "月份", "化解", "運勢", "生肖"]):
-        return "ziwei"
-    return "main"
-
-
 def call_gemini_raw(prompt: str, max_tokens: int = 2048,
                     disable_thinking: bool = False) -> str:
     """單輪呼叫 Gemini（無歷史）"""
@@ -257,21 +234,72 @@ def call_gemini_raw(prompt: str, max_tokens: int = 2048,
 def call_gemini(system_prompt: str, context: str,
                 user_msg: str, history: list[dict]) -> str:
     """多輪對話呼叫 Gemini"""
-    full_user_msg = f"{system_prompt}\n\n{context}\n\n用戶問題：{user_msg}"
+    format_rules = """回答格式補充：
+- 使用純文字，不要使用 Markdown 語法，不要輸出星號、井號、反引號或 Markdown 表格。
+- 回答要完整、有結論，通常控制在 300 至 700 個中文字內；不要在句子中途停止。
+- 需要分點時使用中文序號「一、二、三」或全形圓點「•」。"""
+    full_user_msg = f"{system_prompt}\n\n{format_rules}\n\n{context}\n\n用戶問題：{user_msg}"
     contents: list[types.Content] = []
     for turn in history[-5:]:
         role    = turn.get("role", "user")
         content = turn.get("content", "").strip()
         if role not in ("user", "model") or not content:
             continue
+        # 舊版前端會把當前問題也放進 history；避免模型重複看到同一句。
+        if role == "user" and content == user_msg:
+            continue
         contents.append(types.Content(role=role, parts=[types.Part(text=content)]))
     contents.append(types.Content(role="user", parts=[types.Part(text=full_user_msg)]))
+    config = types.GenerateContentConfig(
+        temperature=0.55,
+        max_output_tokens=4096,
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
+    )
     response = gemini_client.models.generate_content(
         model=GEMINI_MODEL,
         contents=contents,
-        config=types.GenerateContentConfig(temperature=0.7, max_output_tokens=2048),
+        config=config,
     )
-    return response.text
+    reply = response.text or ""
+
+    candidates = getattr(response, "candidates", None) or []
+    finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else None
+    finish_name = getattr(finish_reason, "name", str(finish_reason or ""))
+    if "MAX_TOKENS" in finish_name and reply:
+        continuation_contents = [
+            *contents,
+            types.Content(role="model", parts=[types.Part(text=reply)]),
+            types.Content(
+                role="user",
+                parts=[types.Part(text="請只從剛才中斷的位置接續，完成尚未說完的內容；不要重複前文。")],
+            ),
+        ]
+        continuation = gemini_client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=continuation_contents,
+            config=types.GenerateContentConfig(
+                temperature=0.45,
+                max_output_tokens=2048,
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        reply = reply.rstrip() + (continuation.text or "").lstrip()
+
+    return reply
+
+
+def clean_chat_reply(text: str) -> str:
+    """Render model output as clean plain text even if it ignores format instructions."""
+    cleaned = (text or "").replace("\r\n", "\n")
+    cleaned = re.sub(r"```(?:[\w+-]+)?\s*", "", cleaned)
+    cleaned = cleaned.replace("```", "").replace("**", "").replace("__", "").replace("`", "")
+    cleaned = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", cleaned)
+    cleaned = re.sub(r"(?m)^\s*[-*+]\s+", "• ", cleaned)
+    cleaned = re.sub(r"(?m)^\s*>\s?", "", cleaned)
+    cleaned = cleaned.replace("~~", "").replace("*", "")
+    cleaned = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1（\2）", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def _parse_fortune_sections(text: str) -> dict[str, str]:
@@ -330,16 +358,6 @@ def health():
     })
 
 
-@app.route("/menu/<menu_name>")
-def menu(menu_name: str):
-    buttons = MENUS.get(menu_name, MENUS["main"])
-    items = [
-        {"label": btn, "action": "nav_main" if btn == "返回主選單" else "send"}
-        for btn in buttons
-    ]
-    return jsonify({"menu": menu_name, "buttons": items})
-
-
 @app.route("/chat", methods=["POST"])
 def chat():
     data     = request.get_json(silent=True) or {}
@@ -356,7 +374,6 @@ def chat():
         log_retrieval(retrieval_query, [], "needs_clarification", retrieval_elapsed)
         return jsonify({
             "reply": "要提供個人化的2026年運勢分析，我需要先知道你的生肖或出生年份。請告訴我其中一項，我再根據書本資料回答。",
-            "menu": detect_menu(user_msg),
             "elapsed": 0,
             "citations": [],
             "needs_clarification": True,
@@ -366,12 +383,11 @@ def chat():
 
     results = rag.search(retrieval_query)
     retrieval_elapsed = round(time.time() - retrieval_t0, 3)
-    citations = rag.citations(results)
+    citations = dedupe_display_citations(rag.citations(results))
     if not results:
         log_retrieval(retrieval_query, [], "no_evidence", retrieval_elapsed)
         return jsonify({
             "reply": "目前知識庫中沒有找到足夠相關的資料，因此我不會把回答說成來自李丞責博士的著作。你可以改問2026年生肖運勢、財運、事業、感情、健康、風水、五行或北帝靈籤。",
-            "menu": detect_menu(user_msg),
             "elapsed": 0,
             "citations": [],
             "grounded": False,
@@ -383,14 +399,13 @@ def chat():
 
     t0 = time.time()
     try:
-        reply = call_gemini(SYSTEM_PROMPT, context, user_msg, history)
+        reply = clean_chat_reply(call_gemini(SYSTEM_PROMPT, context, user_msg, history))
     except Exception as e:
         return jsonify({"error": f"Gemini API 錯誤：{e}"}), 500
     elapsed = round(time.time() - t0, 2)
 
     return jsonify({
         "reply": reply,
-        "menu": detect_menu(user_msg),
         "elapsed": elapsed,
         "citations": citations,
         "grounded": True,
@@ -680,7 +695,8 @@ def analyze():
         "health":  _extract(raw_reply, "健康提示"),
         "remedy":  _extract(raw_reply, "化解建議"),
     }
-    question_answer = _extract(raw_reply, "問題解答")
+    # 模型偶爾會在沒有提問時自行追加問題解答；只在用戶真的提問時展示。
+    question_answer = _extract(raw_reply, "問題解答") if question else ""
 
     # 郵件由前端 EmailJS 發送，後端不處理
 

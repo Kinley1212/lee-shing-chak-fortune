@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,7 +56,7 @@ class ChatAPITests(unittest.TestCase):
             patch.object(main.rag, "enrich_query", return_value="屬龍財運"),
             patch.object(main.rag, "needs_zodiac_clarification", return_value=False),
             patch.object(main.rag, "search", return_value=[result]),
-            patch.object(main, "call_gemini", return_value="有依據的回答"),
+            patch.object(main, "call_gemini", return_value="**有依據的回答**"),
         ):
             response = self.client.post("/chat", json={"message": "屬龍財運", "history": []})
         payload = response.get_json()
@@ -64,6 +65,39 @@ class ChatAPITests(unittest.TestCase):
         self.assertEqual(payload["reply"], "有依據的回答")
         self.assertEqual(payload["citations"][0]["source"], "測試全書")
         self.assertEqual(payload["citations"][0]["page_start"], 10)
+
+    def test_chat_reply_is_plain_text(self):
+        self.assertEqual(
+            main.clean_chat_reply("## 財運\n\n**今年穩定**\n- 量入為出\n`不要冒險`"),
+            "財運\n\n今年穩定\n• 量入為出\n不要冒險",
+        )
+
+    def test_chat_continues_once_when_model_hits_output_limit(self):
+        first = SimpleNamespace(
+            text="回答上半段，",
+            candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name="MAX_TOKENS"))],
+        )
+        second = SimpleNamespace(
+            text="這是完成的下半段。",
+            candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name="STOP"))],
+        )
+        with patch.object(main.gemini_client.models, "generate_content", side_effect=[first, second]) as generate:
+            reply = main.call_gemini("系統", "參考", "屬馬事業如何？", [
+                {"role": "user", "content": "屬馬事業如何？"},
+            ])
+        self.assertEqual(reply, "回答上半段，這是完成的下半段。")
+        self.assertEqual(generate.call_count, 2)
+        first_contents = generate.call_args_list[0].kwargs["contents"]
+        self.assertEqual(len(first_contents), 1)
+
+    def test_report_and_chat_pages_link_to_each_other_without_quick_questions(self):
+        report_html = self.client.get("/").get_data(as_text=True)
+        chat_html = self.client.get("/chat").get_data(as_text=True)
+        self.assertIn('href="/chat"', report_html)
+        self.assertIn('src="/static/portrait.png"', chat_html)
+        self.assertIn('href="/"', chat_html)
+        self.assertNotIn('id="menu"', chat_html)
+        self.assertNotIn('/menu/', chat_html)
 
     def test_report_sources_cover_all_six_sections(self):
         sections, context, citations, missing = main.retrieve_report_sources("龍")

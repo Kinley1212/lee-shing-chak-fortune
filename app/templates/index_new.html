@@ -101,6 +101,18 @@ body{
   margin-bottom:20px;padding-bottom:16px;
   border-bottom:1px solid var(--border);
 }
+.chat-entry{
+  margin-left:auto;flex-shrink:0;
+  display:flex;align-items:center;gap:9px;padding:7px 14px 7px 8px;
+  background:rgba(255,255,255,.92);border:1px solid rgba(153,15,35,.2);
+  border-radius:999px;box-shadow:0 6px 24px rgba(153,15,35,.1);
+  color:var(--red);font-size:.8rem;font-weight:700;text-decoration:none;
+  white-space:nowrap;
+  transition:transform .2s,box-shadow .2s,border-color .2s;
+}
+.chat-entry:hover{transform:translateY(-2px);border-color:var(--gold);box-shadow:0 9px 28px rgba(153,15,35,.16)}
+.chat-entry img{width:34px;height:34px;border-radius:50%;object-fit:cover;object-position:center 18%;border:1px solid rgba(184,134,11,.45)}
+.chat-entry small{display:block;color:var(--text3);font-size:.65rem;font-weight:500;margin-top:1px}
 .form-star{font-size:1.4rem;color:var(--gold)}
 .form-card-top h3{
   font-size:1rem;font-weight:700;
@@ -233,10 +245,20 @@ textarea{resize:vertical;min-height:70px;max-height:140px;line-height:1.5}
 .advice-card p{font-size:.875rem;color:var(--text2);line-height:1.8}
 
 .report-source{
-  margin-top:10px;padding-top:8px;border-top:1px solid var(--border);
-  color:var(--text3);font-size:.7rem;line-height:1.5;
+  margin-top:12px;padding:9px 11px;border-left:3px solid var(--gold);
+  border-radius:6px;background:rgba(184,134,11,.065);
+  color:var(--gold3);font-size:.72rem;line-height:1.5;font-weight:600;
 }
 .report-source:empty{display:none}
+
+.grounding-summary{
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  margin:-16px auto 22px;padding:10px 16px;max-width:420px;
+  border:1px solid rgba(184,134,11,.28);border-radius:999px;
+  background:rgba(184,134,11,.06);color:var(--gold3);
+  font-size:.76rem;font-weight:700;
+}
+.grounding-dot{width:8px;height:8px;border-radius:50%;background:#279348;box-shadow:0 0 0 4px rgba(39,147,72,.1)}
 
 .qa-card{
   background:linear-gradient(135deg,rgba(153,15,35,.04),rgba(153,15,35,.02));
@@ -365,6 +387,8 @@ footer{
 
 /* ══ 響應式 ══════════════════════════════════ */
 @media(max-width:768px){
+  .chat-entry{padding:6px 10px 6px 6px}
+  .chat-entry small{display:none}
   .hero-inner{grid-template-columns:1fr;gap:40px;padding:48px 5%}
   .portrait-img{width:200px}
   .form-card{order:1}
@@ -408,6 +432,10 @@ footer{
           <h3>2026馬年運勢分析</h3>
           <p>由李丞責博士AI深度解讀您的流年運程</p>
         </div>
+        <a class="chat-entry" href="/chat" aria-label="進入李丞責博士AI玄學問答">
+          <img src="/static/portrait.png" alt=""/>
+          <span>AI玄學問答<small>直接向李博士提問</small></span>
+        </a>
       </div>
 
       <form id="fortune-form" onsubmit="submitForm(event)">
@@ -472,6 +500,11 @@ footer{
     <p id="result-subtitle"></p>
   </div>
 
+  <div class="grounding-summary" id="grounding-summary">
+    <span class="grounding-dot"></span>
+    <span>正在核對原書資料</span>
+  </div>
+
   <!-- 命盤基本資料 -->
   <div class="bazi-card" id="bazi-card">
     <h3>▸ 命盤基本資料</h3>
@@ -533,6 +566,7 @@ footer{
   <!-- 底部CTA -->
   <div class="result-cta-row">
     <button class="result-cta primary" onclick="resetForm()">重新查詢</button>
+    <a class="result-cta secondary" href="/chat">繼續向李博士提問</a>
   </div>
   <div class="email-note" id="email-note" style="display:none">
     ✉ 報告將發送至您的郵箱
@@ -695,6 +729,9 @@ function renderResult(data, fullName, email) {
 
   // 六個報告段落各自顯示實際檢索來源，不由 Gemini 生成頁碼或書名
   const citations = data.rag_citations || {};
+  const sourceCount = Object.values(citations).filter(Boolean).length;
+  document.querySelector("#grounding-summary span:last-child").textContent =
+    `已核對 ${sourceCount}/6 個原書章節，每段均附資料依據`;
   const renderSource = (elementId, citation) => {
     const el = document.getElementById(elementId);
     if (!citation) { el.textContent = ""; return; }
@@ -704,7 +741,7 @@ function renderResult(data, fullName, email) {
       if (citation.page_end && citation.page_end !== citation.page_start) pageText += `–${citation.page_end}`;
       pageText += "頁";
     }
-    el.textContent = `資料依據：${citation.source}${pageText} · 屬${citation.zodiac}・${citation.topic}`;
+    el.textContent = `原書依據｜${citation.source}${pageText} · 屬${citation.zodiac}・${citation.topic}`;
   };
   ["overall","wealth","career","love","health","remedy"].forEach(key => {
     renderSource(key + "-source", citations[key]);
