@@ -244,13 +244,6 @@ textarea{resize:vertical;min-height:70px;max-height:140px;line-height:1.5}
 }
 .advice-card p{font-size:.875rem;color:var(--text2);line-height:1.8}
 
-.report-source{
-  margin-top:12px;padding:9px 11px;border-left:3px solid var(--gold);
-  border-radius:6px;background:rgba(184,134,11,.065);
-  color:var(--gold3);font-size:.72rem;line-height:1.5;font-weight:600;
-}
-.report-source:empty{display:none}
-
 .qa-card{
   background:linear-gradient(135deg,rgba(153,15,35,.04),rgba(153,15,35,.02));
   border:1px solid rgba(153,15,35,.25);
@@ -502,7 +495,6 @@ footer{
   <div class="overall-card">
     <h3>▸ 整體運勢</h3>
     <p id="overall-text"></p>
-    <div class="report-source" id="overall-source"></div>
   </div>
 
   <!-- 四項運勢 -->
@@ -510,22 +502,18 @@ footer{
     <div class="fortune-item">
       <h4>💰 財運</h4>
       <p id="wealth-text"></p>
-      <div class="report-source" id="wealth-source"></div>
     </div>
     <div class="fortune-item">
       <h4>💼 事業</h4>
       <p id="career-text"></p>
-      <div class="report-source" id="career-source"></div>
     </div>
     <div class="fortune-item">
       <h4>❤️ 感情</h4>
       <p id="love-text"></p>
-      <div class="report-source" id="love-source"></div>
     </div>
     <div class="fortune-item">
       <h4>🌿 健康</h4>
       <p id="health-text"></p>
-      <div class="report-source" id="health-source"></div>
     </div>
   </div>
 
@@ -533,7 +521,6 @@ footer{
   <div class="advice-card">
     <h3>✦ 化解建議</h3>
     <p id="advice-text"></p>
-    <div class="report-source" id="remedy-source"></div>
   </div>
 
   <!-- 問題解答 -->
@@ -546,7 +533,6 @@ footer{
       </div>
     </div>
     <p id="qa-answer-text"></p>
-    <div class="report-source" id="qa-source"></div>
   </div>
 
   <!-- 底部CTA -->
@@ -713,30 +699,14 @@ function renderResult(data, fullName, email) {
   document.getElementById("health-text").textContent  = gs.health  || "";
   document.getElementById("advice-text").textContent  = gs.remedy  || "";
 
-  // 六個報告段落各自顯示實際檢索來源，不由 Gemini 生成頁碼或書名
-  const citations = data.rag_citations || {};
-  const renderSource = (elementId, citation) => {
-    const el = document.getElementById(elementId);
-    if (!citation) { el.textContent = ""; return; }
-    el.textContent = `資料依據：${citation.source}`;
-  };
-  ["overall","wealth","career","love","health","remedy"].forEach(key => {
-    renderSource(key + "-source", citations[key]);
-  });
-
   // 問題解答（只在有問題時顯示）
   const qaCard = document.querySelector(".qa-card");
   if (data.question_answer) {
     qaCard.style.display = "";
     document.getElementById("qa-question-label").textContent = data.question ? `「${data.question}」` : "";
     document.getElementById("qa-answer-text").textContent    = data.question_answer;
-    const questionSources = data.question_citations || [];
-    document.getElementById("qa-source").textContent = questionSources.length
-      ? "資料依據：" + [...new Set(questionSources.map(c => c.source))].join("；")
-      : "";
   } else {
     qaCard.style.display = "none";
-    document.getElementById("qa-source").textContent = "";
   }
 
   // EmailJS 發送報告
@@ -755,13 +725,6 @@ function renderResult(data, fullName, email) {
         ${data.question ? `<p style="color:#666;font-style:italic;margin:0 0 10px;">「${data.question}」</p>` : ""}
         <p style="line-height:1.8;margin:0;">${nl(data.question_answer)}</p>
       </div>` : "";
-    const allCitations = [
-      ...Object.values(data.rag_citations || {}),
-      ...(data.question_citations || []),
-    ].filter(Boolean);
-    const sourceBlock = [...new Set(allCitations.map(c => c.source))]
-      .map(source => `<li style="margin:4px 0;">${source}</li>`).join("");
-
     const html = `<div style="font-family:'PingFang TC','Microsoft JhengHei',sans-serif;max-width:620px;margin:0 auto;background:#fff;">
       <div style="background:linear-gradient(135deg,#7a0a1b,#990f23);padding:32px;text-align:center;">
         <p style="margin:0 0 4px;color:rgba(211,168,98,.9);font-size:13px;letter-spacing:2px;">李丞責博士</p>
@@ -783,10 +746,6 @@ function renderResult(data, fullName, email) {
           <p style="font-size:14px;line-height:1.8;color:#444;margin:0;">${nl(v)}</p>
         </div>`).join("")}
         ${qaBlock}
-        <div style="margin-top:24px;padding:14px 18px;background:#faf8f4;border:1px solid #eadfce;border-radius:6px;">
-          <h3 style="font-size:13px;color:#7a0a1b;margin:0 0 8px;">報告資料依據</h3>
-          <ul style="font-size:12px;color:#777;line-height:1.6;margin:0;padding-left:18px;">${sourceBlock}</ul>
-        </div>
       </div>
       <div style="text-align:center;padding:20px;border-top:1px solid #f0e0c8;font-size:12px;color:#aaa;">
         玄學內容僅供參考，一切以個人判斷為準。© 2026 李丞責中華風水文化基金會

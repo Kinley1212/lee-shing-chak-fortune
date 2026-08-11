@@ -37,8 +37,6 @@ body{background:radial-gradient(ellipse 48% 60% at 0% 40%,rgba(153,15,35,.06),tr
 .row.ai .bubble{color:var(--text2);background:var(--card);border:1px solid var(--border);border-radius:5px 15px 15px 15px;box-shadow:0 4px 16px rgba(153,15,35,.045)}
 .row.user .bubble{color:#fff;background:linear-gradient(135deg,var(--red3),var(--red));border-radius:15px 5px 15px 15px;box-shadow:0 5px 16px rgba(153,15,35,.13)}
 .timestamp{padding:0 5px;color:var(--text3);font-size:.64rem}.row.user .timestamp{text-align:right}
-.citations{padding:9px 11px;border-left:3px solid var(--gold);border-radius:6px;background:rgba(184,134,11,.065);color:var(--gold3);font-size:.7rem;line-height:1.55}
-.citations-title{font-weight:700;margin-bottom:4px}.citation-item+.citation-item{margin-top:3px}
 .dots{display:inline-flex;gap:5px;padding:4px 1px}.dots span{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:blink .9s infinite;opacity:.25}
 .dots span:nth-child(2){animation-delay:.2s}.dots span:nth-child(3){animation-delay:.4s}
 @keyframes blink{0%,80%,100%{opacity:.22;transform:scale(.82)}40%{opacity:1;transform:scale(1)}}
@@ -87,17 +85,10 @@ function avatar(isUser){
   if(isUser){const el=document.createElement("div");el.className="row-avatar";el.textContent="你";return el}
   const img=document.createElement("img");img.className="row-avatar";img.src="/static/portrait.png";img.alt="李丞責博士";return img
 }
-function addBubble(text,isUser,citations=[]){
+function addBubble(text,isUser){
   const row=document.createElement("div");row.className="row "+(isUser?"user":"ai");
   const col=document.createElement("div");col.className="message-col";
   const bubble=document.createElement("div");bubble.className="bubble";bubble.textContent=plainText(text);col.appendChild(bubble);
-  if(!isUser&&citations.length){
-    const box=document.createElement("div");box.className="citations";
-    const title=document.createElement("div");title.className="citations-title";title.textContent="資料依據";box.appendChild(title);
-    [...new Set(citations.map(item=>item.source||"知識庫"))].forEach(source=>{
-      const line=document.createElement("div");line.className="citation-item";line.textContent=source;box.appendChild(line)
-    });col.appendChild(box)
-  }
   const ts=document.createElement("div");ts.className="timestamp";ts.textContent=now();col.appendChild(ts);
   row.appendChild(avatar(isUser));row.appendChild(col);chatEl.appendChild(row);scrollBottom()
 }
@@ -117,7 +108,7 @@ async function sendMsg(){
     const res=await fetch("/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text,history:priorHistory})});
     const data=await res.json();removeLoading();
     if(!res.ok||data.error){addBubble("暫時無法完成回答："+(data.error||"請稍後再試。"),false)}
-    else{const reply=plainText(data.reply);addBubble(reply,false,data.citations||[]);history.push({role:"model",content:reply});if(history.length>20)history=history.slice(-20)}
+    else{const reply=plainText(data.reply);addBubble(reply,false);history.push({role:"model",content:reply});if(history.length>20)history=history.slice(-20)}
   }catch(error){removeLoading();addBubble("網絡連線出現問題，請稍後再試。",false)}
   finally{sbtnEl.disabled=false;txtEl.focus()}
 }

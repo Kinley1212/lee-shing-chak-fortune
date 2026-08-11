@@ -99,9 +99,17 @@ class ChatAPITests(unittest.TestCase):
         self.assertNotIn('id="menu"', chat_html)
         self.assertNotIn('/menu/', chat_html)
         self.assertNotIn("已核對 6/6", report_html)
+        self.assertNotIn("資料依據", report_html)
+        self.assertNotIn("資料依據", chat_html)
+        self.assertNotIn("report-source", report_html)
+        self.assertNotIn("citations-title", chat_html)
         self.assertIn("請先輸入生肖或完整出生日期", chat_html)
         self.assertNotIn('id="memory-card"', chat_html)
         self.assertNotIn('id="memory-clear"', chat_html)
+
+    def test_prompts_do_not_request_visible_source_attribution(self):
+        self.assertNotIn("每次回答末端加", main.SYSTEM_PROMPT)
+        self.assertIn("不要在回答中顯示", main.SYSTEM_PROMPT)
 
     def test_greeting_and_self_introduction_do_not_use_rag(self):
         social_messages = [
